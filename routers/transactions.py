@@ -25,13 +25,44 @@ async def create_transaction(
     # Verify operator PIN
     if not user.pin_hash:
         raise HTTPException(status_code=403, detail="Você precisa cadastrar um PIN antes de realizar transações")
+
+    if user.pin_locked:
+        raise HTTPException(
+            status_code=403,
+            detail="Usuário bloqueado por excesso de tentativas de PIN incorreto. Contate o administrador.",
+        )
+
     if not verify_pin(data.operator_pin, user.pin_hash):
+        user.pin_failed_attempts = (user.pin_failed_attempts or 0) + 1
+        attempts_left = max(0, 3 - user.pin_failed_attempts)
+
+        if user.pin_failed_attempts >= 3:
+            user.pin_locked = True
+            await audit.log(
+                db, action="pin_lockout", username=user.username,
+                request=request, user_id=user.id, entity_type="operator",
+                new_value={"reason": "3 tentativas de PIN incorreto"},
+            )
+            await db.commit()
+            raise HTTPException(
+                status_code=403,
+                detail="Usuário bloqueado após 3 tentativas incorretas de PIN. Contate o administrador.",
+            )
+
         await audit.log(
             db, action="transaction_pin_failed", username=user.username,
             request=request, user_id=user.id, entity_type="transaction",
+            new_value={"attempts": user.pin_failed_attempts, "attempts_left": attempts_left},
         )
         await db.commit()
-        raise HTTPException(status_code=401, detail="PIN incorreto")
+        raise HTTPException(
+            status_code=401,
+            detail=f"PIN incorreto. Tentativas restantes: {attempts_left}",
+        )
+
+    # PIN correct — reset failed attempts counter
+    if user.pin_failed_attempts:
+        user.pin_failed_attempts = 0
 
     # Load fee
     cfg_res = await db.execute(select(models.AppSettings).where(models.AppSettings.id == 1))

@@ -77,6 +77,7 @@ async def update_operator(
         "can_see_profits": user.can_see_profits,
         "can_see_volume": user.can_see_volume,
         "can_see_balance": user.can_see_balance,
+        "can_unblock_users": user.can_unblock_users,
     }
 
     if data.is_active is not None:
@@ -87,12 +88,15 @@ async def update_operator(
         user.can_see_volume = data.can_see_volume
     if data.can_see_balance is not None:
         user.can_see_balance = data.can_see_balance
+    if data.can_unblock_users is not None:
+        user.can_unblock_users = data.can_unblock_users
 
     new = {
         "is_active": user.is_active,
         "can_see_profits": user.can_see_profits,
         "can_see_volume": user.can_see_volume,
         "can_see_balance": user.can_see_balance,
+        "can_unblock_users": user.can_unblock_users,
     }
 
     await audit.log(
@@ -126,6 +130,9 @@ async def set_operator_pin(
         raise HTTPException(status_code=404, detail="Operador não encontrado")
 
     user.pin_hash = hash_pin(data.pin)
+    # Trocar PIN também desbloqueia o usuário
+    user.pin_locked = False
+    user.pin_failed_attempts = 0
 
     await audit.log(
         db, action="set_pin", username=current_user.username,
@@ -136,4 +143,39 @@ async def set_operator_pin(
     await db.refresh(user)
     out = UserOut.model_validate(user)
     out.has_pin = True
+    return out
+
+
+@router.post("/{operator_id}/unblock", response_model=UserOut)
+async def unblock_operator(
+    operator_id: int,
+    request: Request,
+    current_user: models.User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    # Apenas admin ou usuário com permissão can_unblock_users pode desbloquear
+    if current_user.role != models.UserRole.admin and not current_user.can_unblock_users:
+        raise HTTPException(status_code=403, detail="Sem permissão para desbloquear usuários")
+
+    result = await db.execute(select(models.User).where(models.User.id == operator_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="Operador não encontrado")
+
+    if not user.pin_locked:
+        raise HTTPException(status_code=400, detail="Usuário não está bloqueado")
+
+    user.pin_locked = False
+    user.pin_failed_attempts = 0
+
+    await audit.log(
+        db, action="unblock_operator", username=current_user.username,
+        request=request, user_id=current_user.id,
+        entity_type="operator", entity_id=user.id,
+        new_value={"unblocked_by": current_user.username},
+    )
+    await db.commit()
+    await db.refresh(user)
+    out = UserOut.model_validate(user)
+    out.has_pin = user.pin_hash is not None
     return out

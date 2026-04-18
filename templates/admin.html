@@ -21,14 +21,17 @@
   <div class="table-wrap">
     <table class="data-table">
       <thead><tr>
-        <th>#</th><th>Usuário</th><th>Cargo</th><th>Status</th><th>PIN</th>
-        <th>Ver Lucros</th><th>Ver Volume</th><th>Ver Caixa</th><th>Ações</th>
+        <th>#</th><th>Usuário</th><th>Cargo</th><th>Status</th>
+        <th>PIN</th><th>Tentativas</th>
+        <th>Ver Lucros</th><th>Ver Volume</th><th>Ver Caixa</th><th>Desbloquear</th>
+        <th>Ações</th>
       </tr></thead>
       <tbody id="opBody"></tbody>
     </table>
   </div>
 </div>
 
+<!-- Modal: Trocar PIN -->
 <div id="pinModal" class="modal" style="display:none">
   <div class="modal-card">
     <h3>Trocar PIN — <span id="pinOpName"></span></h3>
@@ -38,6 +41,7 @@
         <label>Novo PIN (4 dígitos)</label>
         <input type="password" id="newPin" required maxlength="4" inputmode="numeric"
                placeholder="0000" pattern="[0-9]{4}" autocomplete="off" class="otp-input">
+        <small>Trocar o PIN também desbloqueia o usuário automaticamente</small>
       </div>
       <div id="pinErr" class="alert alert-error" style="display:none"></div>
       <div id="pinOk" class="alert alert-success" style="display:none"></div>
@@ -49,6 +53,7 @@
   </div>
 </div>
 
+<!-- Modal: Novo Operador -->
 <div id="opModal" class="modal" style="display:none">
   <div class="modal-card">
     <h3>Novo Operador</h3>
@@ -63,8 +68,8 @@
       </div>
       <div class="form-group">
         <label>PIN de transação (4 dígitos)</label>
-        <input type="password" id="opPin" required maxlength="4" inputmode="numeric" placeholder="0000"
-               pattern="[0-9]{4}" autocomplete="off">
+        <input type="password" id="opPin" required maxlength="4" inputmode="numeric"
+               placeholder="0000" pattern="[0-9]{4}" autocomplete="off">
         <small>O operador precisará digitar este PIN para confirmar cada troca</small>
       </div>
       <div class="form-group">
@@ -93,30 +98,53 @@
     const pct = parseFloat(document.getElementById('feePct').value);
     const msg = document.getElementById('feeMsg');
     try {
-      await fetch('/api/settings/fee', {method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({fee_pct: pct})});
-      msg.textContent = '✓ Taxa salva com sucesso!'; msg.className = 'msg msg-ok';
+      await fetch('/api/settings/fee', {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({fee_pct: pct})});
+      msg.textContent = '✓ Taxa salva!'; msg.className = 'msg msg-ok';
     } catch { msg.textContent = 'Erro ao salvar.'; msg.className = 'msg msg-err'; }
   }
+
   async function loadOps() {
     const ops = await fetch('/api/operators').then(r => r.json());
-    document.getElementById('opBody').innerHTML = ops.map(o => `
-      <tr id="op-${o.id}">
+    document.getElementById('opBody').innerHTML = ops.map(o => {
+      const locked = o.pin_locked;
+      const attemptsLeft = Math.max(0, 3 - (o.pin_failed_attempts || 0));
+      const pinBadge = !o.has_pin
+        ? `<span class="badge badge-red">✗ Sem PIN</span>`
+        : locked
+          ? `<span class="badge badge-red">🔒 Bloqueado</span>`
+          : `<span class="badge badge-green">✓ OK</span>`;
+      const attemptsBadge = o.has_pin && !locked
+        ? `<span class="badge ${o.pin_failed_attempts > 0 ? 'badge-yellow' : 'badge-green'}">${o.pin_failed_attempts}/3</span>`
+        : `<span style="color:#64748b">—</span>`;
+      const unblockBtn = locked
+        ? `<button class="btn btn-sm btn-primary" onclick="unblock(${o.id})">🔓 Desbloquear</button>`
+        : `<span style="color:#64748b">—</span>`;
+
+      return `<tr id="op-${o.id}">
         <td>#${o.id}</td>
         <td>${o.username}</td>
         <td>${o.role}</td>
         <td><span class="badge ${o.is_active ? 'badge-green' : 'badge-red'}">${o.is_active ? 'Ativo' : 'Inativo'}</span></td>
-        <td><span class="badge ${o.has_pin ? 'badge-green' : 'badge-red'}">${o.has_pin ? '✓ Cadastrado' : '✗ Sem PIN'}</span></td>
+        <td>${pinBadge}</td>
+        <td>${attemptsBadge}</td>
         <td><input type="checkbox" ${o.can_see_profits?'checked':''} onchange="updatePerm(${o.id},'can_see_profits',this.checked)"></td>
         <td><input type="checkbox" ${o.can_see_volume?'checked':''} onchange="updatePerm(${o.id},'can_see_volume',this.checked)"></td>
         <td><input type="checkbox" ${o.can_see_balance?'checked':''} onchange="updatePerm(${o.id},'can_see_balance',this.checked)"></td>
+        <td>
+          <input type="checkbox" ${o.can_unblock_users?'checked':''} title="Pode desbloquear outros operadores"
+                 onchange="updatePerm(${o.id},'can_unblock_users',this.checked)">
+        </td>
         <td style="display:flex;gap:.4rem;flex-wrap:wrap">
+          ${unblockBtn}
           <button class="btn btn-sm ${o.is_active ? 'btn-danger' : 'btn-outline'}" onclick="toggleActive(${o.id},${!o.is_active})">
             ${o.is_active ? 'Desativar' : 'Ativar'}
           </button>
           <button class="btn btn-sm btn-outline" onclick="openPinModal(${o.id},'${o.username}')">Trocar PIN</button>
         </td>
-      </tr>`).join('');
+      </tr>`;
+    }).join('');
   }
+
   async function updatePerm(id, field, value) {
     await fetch(`/api/operators/${id}`, {method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({[field]: value})});
   }
@@ -124,6 +152,14 @@
     await fetch(`/api/operators/${id}`, {method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({is_active: newState})});
     loadOps();
   }
+  async function unblock(id) {
+    try {
+      await fetch(`/api/operators/${id}/unblock`, {method:'POST'})
+        .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.detail); return d; });
+      loadOps();
+    } catch (err) { alert('Erro ao desbloquear: ' + err.message); }
+  }
+
   function openOpModal() { document.getElementById('opModal').style.display = 'flex'; }
   function closeOpModal() { document.getElementById('opModal').style.display = 'none'; }
   document.getElementById('opForm').addEventListener('submit', async (e) => {
@@ -133,12 +169,18 @@
     try {
       await fetch('/api/operators', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({username: document.getElementById('opUsername').value, password: document.getElementById('opPassword').value, pin: document.getElementById('opPin').value, role: document.getElementById('opRole').value}),
+        body: JSON.stringify({
+          username: document.getElementById('opUsername').value,
+          password: document.getElementById('opPassword').value,
+          pin: document.getElementById('opPin').value,
+          role: document.getElementById('opRole').value,
+        }),
       }).then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.detail); return d; });
       closeOpModal(); e.target.reset(); loadOps();
     } catch (err) { errEl.textContent = err.message; errEl.style.display = 'block'; }
     btn.disabled = false;
   });
+
   function openPinModal(id, name) {
     document.getElementById('pinOpId').value = id;
     document.getElementById('pinOpName').textContent = name;
@@ -158,11 +200,12 @@
         method: 'PUT', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({pin: document.getElementById('newPin').value}),
       }).then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.detail); return d; });
-      okEl.textContent = '✓ PIN atualizado!'; okEl.style.display = 'block';
+      okEl.textContent = '✓ PIN atualizado e usuário desbloqueado!'; okEl.style.display = 'block';
       loadOps();
     } catch (err) { errEl.textContent = err.message; errEl.style.display = 'block'; }
     btn.disabled = false;
   });
+
   loadFee(); loadOps();
 </script>
 {% endblock %}

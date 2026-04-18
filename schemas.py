@@ -22,9 +22,12 @@ class UserOut(BaseModel):
     role: UserRole
     is_active: bool
     has_pin: bool = False
+    pin_locked: bool = False
+    pin_failed_attempts: int = 0
     can_see_profits: bool
     can_see_volume: bool
     can_see_balance: bool
+    can_unblock_users: bool = False
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -59,6 +62,7 @@ class OperatorUpdate(BaseModel):
     can_see_profits: Optional[bool] = None
     can_see_volume: Optional[bool] = None
     can_see_balance: Optional[bool] = None
+    can_unblock_users: Optional[bool] = None
 
 
 class OperatorSetPin(BaseModel):
