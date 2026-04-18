@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}Caixa — Exchange{% endblock %}
+{% block content %}
+<h2 class="page-title">Controle de Caixa</h2>
+
+<div class="cards-grid" id="balCards"></div>
+
+<div class="admin-section" style="margin-top:2rem">
+  <h3>Movimentação</h3>
+  <form id="movForm" class="form-inline-col">
+    <div class="form-row">
+      <div class="form-group">
+        <label>Moeda</label>
+        <select id="mCurrency">
+          <option value="USD">USD</option>
+          <option value="USDT">USDT</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Tipo</label>
+        <select id="mType">
+          <option value="deposit">Depósito (entrada)</option>
+          <option value="withdrawal">Retirada (saída)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Valor</label>
+        <input type="number" id="mAmount" step="0.000001" min="0.01" required>
+      </div>
+      <div class="form-group">
+        <label>Motivo</label>
+        <input type="text" id="mNotes" placeholder="Opcional">
+      </div>
+    </div>
+    <div id="mErr" class="alert alert-error" style="display:none"></div>
+    <div id="mOk" class="alert alert-success" style="display:none"></div>
+    <button type="submit" class="btn btn-primary">Registrar Movimentação</button>
+  </form>
+</div>
+
+<div class="admin-section" style="margin-top:2rem">
+  <h3>Histórico de Movimentações</h3>
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead><tr><th>Moeda</th><th>Tipo</th><th>Valor</th><th>Motivo</th><th>Data</th></tr></thead>
+      <tbody id="movBody"></tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  function fmt(n) { return Number(n).toLocaleString('pt-BR', {minimumFractionDigits: 2}); }
+  function fmtDT(s) { return new Date(s).toLocaleString('pt-BR', {timeZone: 'America/Sao_Paulo'}); }
+  async function loadBalance() {
+    const bals = await fetch('/api/balance').then(r => r.json());
+    const el = document.getElementById('balCards');
+    el.innerHTML = '';
+    bals.forEach(b => {
+      const cls = b.currency === 'USDT' ? 'card-blue' : 'card-green';
+      el.innerHTML += `<div class="stat-card ${cls}"><div class="stat-label">Saldo ${b.currency}</div><div class="stat-value">${fmt(b.balance)} <span class="stat-unit">${b.currency}</span></div></div>`;
+    });
+  }
+  async function loadMovements() {
+    const movs = await fetch('/api/balance/movements').then(r => r.json());
+    document.getElementById('movBody').innerHTML = movs.map(m => `
+      <tr>
+        <td>${m.currency}</td>
+        <td><span class="badge ${m.movement_type === 'deposit' ? 'badge-green' : 'badge-red'}">${m.movement_type === 'deposit' ? 'Entrada' : 'Saída'}</span></td>
+        <td>${fmt(m.amount)}</td>
+        <td>${m.notes || '—'}</td>
+        <td>${fmtDT(m.created_at)}</td>
+      </tr>`).join('');
+  }
+  document.getElementById('movForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errEl = document.getElementById('mErr'); const okEl = document.getElementById('mOk');
+    errEl.style.display = 'none'; okEl.style.display = 'none';
+    const type = document.getElementById('mType').value;
+    const btn = e.target.querySelector('button'); btn.disabled = true;
+    try {
+      await fetch(`/api/balance/${type}`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({currency: document.getElementById('mCurrency').value, movement_type: type, amount: parseFloat(document.getElementById('mAmount').value), notes: document.getElementById('mNotes').value || null}),
+      }).then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.detail); return d; });
+      okEl.textContent = 'Movimentação registrada!'; okEl.style.display = 'block';
+      e.target.reset(); loadBalance(); loadMovements();
+    } catch (err) { errEl.textContent = err.message; errEl.style.display = 'block'; }
+    btn.disabled = false;
+  });
+  loadBalance(); loadMovements();
+</script>
+{% endblock %}

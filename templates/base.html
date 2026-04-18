@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Exchange USDT ↔ USD{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="op-body">
+  <nav class="navbar">
+    <div class="nav-brand">💱 Exchange</div>
+    <div class="nav-links">
+      <a href="/dashboard">Dashboard</a>
+      <a href="/transactions/new">Nova Troca</a>
+      <a href="/transactions">Histórico</a>
+      <a href="/clients">Clientes</a>
+      {% if user.role == 'admin' %}
+      <a href="/balance">Caixa</a>
+      <a href="/admin">Admin</a>
+      <a href="/audit">Auditoria</a>
+      {% endif %}
+    </div>
+    <div class="nav-user">
+      <span>{{ user.username }} ({{ user.role }})</span>
+      <button class="btn-sm btn-outline" onclick="logout()">Sair</button>
+    </div>
+  </nav>
+  <main class="container">
+    {% block content %}{% endblock %}
+  </main>
+  <script>
+    async function logout() {
+      await fetch('/api/auth/logout', {method: 'POST'});
+      window.location.href = '/login';
+    }
+    async function api(method, url, body) {
+      const opts = {method, headers: {'Content-Type': 'application/json'}};
+      if (body) opts.body = JSON.stringify(body);
+      const r = await fetch(url, opts);
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.detail || 'Erro');
+      return data;
+    }
+    function fmt(n) { return Number(n).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2}); }
+    function fmtDT(s) {
+      const d = new Date(s);
+      return d.toLocaleString('pt-BR', {timeZone: 'America/Sao_Paulo'});
+    }
+  </script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

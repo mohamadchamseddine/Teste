@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Minha Conta — Exchange</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="client-body">
+  <nav class="client-navbar">
+    <div class="nav-brand">💱 Exchange</div>
+    <div class="nav-links">
+      <a href="/client/dashboard" class="active">Saldo</a>
+      <a href="/client/deposit">Depositar USDT</a>
+      <a href="/client/statement">Extrato</a>
+    </div>
+    <div class="nav-user">
+      <span>{{ client.name }}</span>
+      <button class="btn-sm btn-outline" onclick="logout()">Sair</button>
+    </div>
+  </nav>
+  <main class="container">
+    <h2 class="page-title">Olá, {{ client.name }}!</h2>
+    <div class="cards-grid">
+      <div class="stat-card card-blue">
+        <div class="stat-label">Saldo USDT</div>
+        <div class="stat-value" id="usdtBal">—</div>
+      </div>
+      <div class="stat-card card-green">
+        <div class="stat-label">Saldo USD</div>
+        <div class="stat-value" id="usdBal">—</div>
+      </div>
+    </div>
+    <div style="margin-top:2rem; display:flex; gap:1rem; flex-wrap:wrap">
+      <a href="/client/deposit" class="btn btn-primary">📥 Depositar USDT</a>
+      <a href="/client/statement" class="btn btn-outline">📋 Ver Extrato</a>
+    </div>
+  </main>
+  <script>
+    function fmt(n) { return Number(n).toLocaleString('pt-BR', {minimumFractionDigits: 2}) }
+    async function load() {
+      const b = await fetch('/api/client/me/balance').then(r => r.json());
+      document.getElementById('usdtBal').textContent = fmt(b.usdt_balance) + ' USDT';
+      document.getElementById('usdBal').textContent = fmt(b.usd_balance) + ' USD';
+    }
+    async function logout() {
+      await fetch('/api/client/logout', {method:'POST'});
+      window.location.href = '/client/login';
+    }
+    load();
+  </script>
+</body>
+</html>

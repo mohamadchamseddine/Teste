@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Auditoria — Exchange{% endblock %}
+{% block content %}
+<h2 class="page-title">Log de Auditoria</h2>
+<div class="filters">
+  <input type="text" id="fUser" placeholder="Filtrar por usuário" oninput="load()">
+  <select id="fAction" onchange="load()">
+    <option value="">Todas as ações</option>
+    <option value="login">Login</option>
+    <option value="login_failed">Login falhou</option>
+    <option value="logout">Logout</option>
+    <option value="create_transaction">Transação criada</option>
+    <option value="update_fee">Taxa alterada</option>
+    <option value="create_operator">Operador criado</option>
+    <option value="update_operator">Operador atualizado</option>
+    <option value="create_client">Cliente criado</option>
+    <option value="cash_deposit">Depósito no caixa</option>
+    <option value="cash_withdrawal">Retirada do caixa</option>
+    <option value="usdt_deposit_detected">Depósito USDT on-chain</option>
+  </select>
+</div>
+<div class="table-wrap">
+  <table class="data-table">
+    <thead><tr>
+      <th>#</th><th>Usuário</th><th>Ação</th><th>Entidade</th>
+      <th>IP</th><th>Máquina / Browser</th><th>Data/Hora</th>
+    </tr></thead>
+    <tbody id="auditBody"></tbody>
+  </table>
+</div>
+<div class="pagination">
+  <button class="btn btn-sm btn-outline" onclick="prevPage()">← Anterior</button>
+  <span id="pageInfo">Pág. 1</span>
+  <button class="btn btn-sm btn-outline" onclick="nextPage()">Próxima →</button>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  let page = 0, perPage = 50;
+  async function load() {
+    const user = document.getElementById('fUser').value;
+    const action = document.getElementById('fAction').value;
+    let url = `/api/audit?limit=${perPage}&offset=${page*perPage}`;
+    if (user) url += `&username=${encodeURIComponent(user)}`;
+    if (action) url += `&action=${encodeURIComponent(action)}`;
+    const logs = await fetch(url).then(r => r.json());
+    document.getElementById('auditBody').innerHTML = logs.map(l => `
+      <tr>
+        <td>${l.id}</td>
+        <td>${l.username}</td>
+        <td><code>${l.action}</code></td>
+        <td>${l.entity_type ? `${l.entity_type}${l.entity_id ? ' #'+l.entity_id : ''}` : '—'}</td>
+        <td>${l.ip_address}</td>
+        <td class="td-machine">${l.machine_name}</td>
+        <td>${fmtDT(l.created_at)}</td>
+      </tr>`).join('');
+    document.getElementById('pageInfo').textContent = `Pág. ${page+1}`;
+  }
+  function prevPage() { if (page > 0) { page--; load(); } }
+  function nextPage() { page++; load(); }
+  function fmtDT(s) { return new Date(s).toLocaleString('pt-BR', {timeZone: 'America/Sao_Paulo'}); }
+  load();
+</script>
+{% endblock %}

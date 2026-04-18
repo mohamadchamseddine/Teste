@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}Nova Troca — Exchange{% endblock %}
+{% block content %}
+<h2 class="page-title">Nova Troca</h2>
+<div class="form-card">
+  <form id="txForm">
+    <div class="form-row">
+      <div class="form-group">
+        <label>Direção</label>
+        <select id="direction" required onchange="calcPreview()">
+          <option value="usdt_to_usd">USDT → USD (recebe USDT, entrega USD)</option>
+          <option value="usd_to_usdt">USD → USDT (recebe USD, entrega USDT)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Valor recebido</label>
+        <input type="number" id="amount_in" step="0.000001" min="0.01" required placeholder="0.00" oninput="calcPreview()">
+      </div>
+    </div>
+
+    <div class="preview-box" id="preview" style="display:none">
+      <div class="preview-row">
+        <span>Valor bruto:</span><strong id="pIn">—</strong>
+      </div>
+      <div class="preview-row">
+        <span>Taxa (<span id="pPct">—</span>%):</span><strong id="pFee">—</strong>
+      </div>
+      <div class="preview-row preview-total">
+        <span>Valor a entregar:</span><strong id="pOut">—</strong>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Cliente (opcional)</label>
+        <select id="client_id">
+          <option value="">— Selecionar cliente cadastrado —</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Nome do cliente (avulso)</label>
+        <input type="text" id="client_name" placeholder="Nome para registro">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Observações</label>
+      <input type="text" id="notes" placeholder="Observações opcionais">
+    </div>
+    <div id="error" class="alert alert-error" style="display:none"></div>
+    <div id="success" class="alert alert-success" style="display:none"></div>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Confirmar Troca</button>
+      <a href="/transactions" class="btn btn-outline">Cancelar</a>
+    </div>
+  </form>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  let feePct = 1.0;
+  async function init() {
+    const fee = await fetch('/api/settings/fee').then(r => r.json());
+    feePct = fee.fee_pct;
+    document.getElementById('pPct').textContent = feePct;
+    const clients = await fetch('/api/clients').then(r => r.json());
+    const sel = document.getElementById('client_id');
+    clients.forEach(c => {
+      sel.innerHTML += `<option value="${c.id}">${c.name} — ${c.phone}</option>`;
+    });
+  }
+  function calcPreview() {
+    const amount = parseFloat(document.getElementById('amount_in').value) || 0;
+    const dir = document.getElementById('direction').value;
+    if (amount <= 0) { document.getElementById('preview').style.display='none'; return; }
+    const fee = round6(amount * feePct / 100);
+    const out = round6(amount - fee);
+    const cIn = dir === 'usdt_to_usd' ? 'USDT' : 'USD';
+    const cOut = dir === 'usdt_to_usd' ? 'USD' : 'USDT';
+    document.getElementById('pIn').textContent = `${fmt(amount)} ${cIn}`;
+    document.getElementById('pFee').textContent = `${fmt(fee)} ${cIn}`;
+    document.getElementById('pOut').textContent = `${fmt(out)} ${cOut}`;
+    document.getElementById('pPct').textContent = feePct;
+    document.getElementById('preview').style.display = 'block';
+  }
+  function round6(n) { return Math.round(n * 1e6) / 1e6; }
+  function fmt(n) { return Number(n).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 6}); }
+  document.getElementById('txForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errEl = document.getElementById('error');
+    const okEl = document.getElementById('success');
+    errEl.style.display = 'none'; okEl.style.display = 'none';
+    const clientId = document.getElementById('client_id').value;
+    const body = {
+      direction: document.getElementById('direction').value,
+      amount_in: parseFloat(document.getElementById('amount_in').value),
+      client_id: clientId ? parseInt(clientId) : null,
+      client_name: document.getElementById('client_name').value || null,
+      notes: document.getElementById('notes').value || null,
+    };
+    const btn = e.target.querySelector('button[type=submit]');
+    btn.disabled = true; btn.textContent = 'Processando...';
+    try {
+      const tx = await fetch('/api/transactions', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(body),
+      }).then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.detail); return d; });
+      okEl.textContent = `Troca #${tx.id} registrada! Entregue: ${fmt(tx.amount_out)}`;
+      okEl.style.display = 'block';
+      document.getElementById('txForm').reset();
+      document.getElementById('preview').style.display = 'none';
+    } catch (err) {
+      errEl.textContent = err.message;
+      errEl.style.display = 'block';
+    }
+    btn.disabled = false; btn.textContent = 'Confirmar Troca';
+  });
+  init();
+</script>
+{% endblock %}

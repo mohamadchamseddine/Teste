@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Depositar USDT — Exchange</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="client-body">
+  <nav class="client-navbar">
+    <div class="nav-brand">💱 Exchange</div>
+    <div class="nav-links">
+      <a href="/client/dashboard">Saldo</a>
+      <a href="/client/deposit" class="active">Depositar USDT</a>
+      <a href="/client/statement">Extrato</a>
+    </div>
+    <div class="nav-user">
+      <span>{{ client.name }}</span>
+      <button class="btn-sm btn-outline" onclick="logout()">Sair</button>
+    </div>
+  </nav>
+  <main class="container">
+    <h2 class="page-title">Depositar USDT (TRC20)</h2>
+
+    {% if client.deposit_address %}
+    <div class="deposit-card">
+      <div class="deposit-info">
+        <h3>Seu endereço de depósito</h3>
+        <p class="deposit-hint">Envie USDT pela rede <strong>TRC20 (Tron)</strong> para o endereço abaixo.<br>
+        Os valores serão creditados automaticamente após confirmação na blockchain.</p>
+        <div class="address-box">
+          <code id="addr">{{ client.deposit_address }}</code>
+          <button class="btn btn-sm btn-outline" onclick="copyAddr()">Copiar</button>
+        </div>
+        <p id="copyMsg" style="color:#22c55e;display:none">✓ Endereço copiado!</p>
+        <div class="alert alert-warning">
+          ⚠️ Envie apenas <strong>USDT na rede TRC20</strong>. Outras redes ou moedas resultarão em perda de fundos.
+        </div>
+      </div>
+      <div class="deposit-qr">
+        <img src="/api/client/me/deposit-qr" alt="QR Code do endereço USDT" width="220" height="220">
+        <p class="qr-hint">Escaneie com a Trust Wallet</p>
+      </div>
+    </div>
+    {% else %}
+    <div class="alert alert-warning">
+      Endereço de depósito não configurado. Entre em contato com o suporte.
+    </div>
+    {% endif %}
+  </main>
+  <script>
+    function copyAddr() {
+      const addr = document.getElementById('addr').textContent;
+      navigator.clipboard.writeText(addr).then(() => {
+        const msg = document.getElementById('copyMsg');
+        msg.style.display = 'block';
+        setTimeout(() => msg.style.display = 'none', 3000);
+      });
+    }
+    async function logout() {
+      await fetch('/api/client/logout', {method:'POST'});
+      window.location.href = '/client/login';
+    }
+  </script>
+</body>
+</html>

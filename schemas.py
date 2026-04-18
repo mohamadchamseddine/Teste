@@ -1,0 +1,207 @@
+from pydantic import BaseModel, field_validator
+from typing import Optional, Any
+from datetime import datetime
+from models import UserRole, Direction, Currency, MovementType
+
+
+# ── Auth ──────────────────────────────────────────────────────────────────────
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
+class UserOut(BaseModel):
+    id: int
+    username: str
+    role: UserRole
+    is_active: bool
+    can_see_profits: bool
+    can_see_volume: bool
+    can_see_balance: bool
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+# ── Operators ─────────────────────────────────────────────────────────────────
+
+class OperatorCreate(BaseModel):
+    username: str
+    password: str
+    role: UserRole = UserRole.operator
+
+
+class OperatorUpdate(BaseModel):
+    is_active: Optional[bool] = None
+    can_see_profits: Optional[bool] = None
+    can_see_volume: Optional[bool] = None
+    can_see_balance: Optional[bool] = None
+
+
+# ── Settings ──────────────────────────────────────────────────────────────────
+
+class FeeUpdate(BaseModel):
+    fee_pct: float
+
+    @field_validator("fee_pct")
+    @classmethod
+    def validate_fee(cls, v: float) -> float:
+        if v < 0 or v > 100:
+            raise ValueError("Taxa deve estar entre 0 e 100")
+        return round(v, 4)
+
+
+class FeeOut(BaseModel):
+    fee_pct: float
+
+
+# ── Transactions ──────────────────────────────────────────────────────────────
+
+class TransactionCreate(BaseModel):
+    direction: Direction
+    amount_in: float
+    client_id: Optional[int] = None
+    client_name: Optional[str] = None
+    notes: Optional[str] = None
+
+    @field_validator("amount_in")
+    @classmethod
+    def validate_amount(cls, v: float) -> float:
+        if v <= 0:
+            raise ValueError("Valor deve ser maior que zero")
+        return round(v, 6)
+
+
+class TransactionOut(BaseModel):
+    id: int
+    operator_id: int
+    client_id: Optional[int]
+    direction: Direction
+    amount_in: float
+    fee_pct: float
+    fee_amount: float
+    amount_out: float
+    client_name: Optional[str]
+    notes: Optional[str]
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+# ── Clients ───────────────────────────────────────────────────────────────────
+
+class ClientCreate(BaseModel):
+    name: str
+    phone: str
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, v: str) -> str:
+        digits = "".join(c for c in v if c.isdigit())
+        if len(digits) < 10:
+            raise ValueError("Número de telefone inválido")
+        return digits
+
+
+class ClientOut(BaseModel):
+    id: int
+    name: str
+    phone: str
+    is_active: bool
+    usdt_balance: float
+    usd_balance: float
+    deposit_address: Optional[str]
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class ClientBalanceOut(BaseModel):
+    usdt_balance: float
+    usd_balance: float
+
+
+# ── OTP ───────────────────────────────────────────────────────────────────────
+
+class OTPRequest(BaseModel):
+    phone: str
+
+
+class OTPVerify(BaseModel):
+    phone: str
+    code: str
+
+
+# ── Balance ───────────────────────────────────────────────────────────────────
+
+class CashBalanceOut(BaseModel):
+    currency: Currency
+    balance: float
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class CashMovementCreate(BaseModel):
+    currency: Currency
+    movement_type: MovementType
+    amount: float
+    notes: Optional[str] = None
+
+    @field_validator("amount")
+    @classmethod
+    def validate_amount(cls, v: float) -> float:
+        if v <= 0:
+            raise ValueError("Valor deve ser maior que zero")
+        return round(v, 6)
+
+
+class CashMovementOut(BaseModel):
+    id: int
+    operator_id: int
+    currency: Currency
+    movement_type: MovementType
+    amount: float
+    notes: Optional[str]
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+# ── Dashboard ─────────────────────────────────────────────────────────────────
+
+class DashboardStats(BaseModel):
+    my_transactions_today: int
+    total_volume_today: Optional[float] = None
+    total_fee_today: Optional[float] = None
+    usdt_balance: Optional[float] = None
+    usd_balance: Optional[float] = None
+    clients_usdt_total: Optional[float] = None
+    clients_usd_total: Optional[float] = None
+    company_usdt: Optional[float] = None
+    company_usd: Optional[float] = None
+    recent_transactions: list[TransactionOut] = []
+
+
+# ── Audit ─────────────────────────────────────────────────────────────────────
+
+class AuditLogOut(BaseModel):
+    id: int
+    user_id: Optional[int]
+    username: str
+    action: str
+    entity_type: Optional[str]
+    entity_id: Optional[int]
+    old_value: Optional[Any]
+    new_value: Optional[Any]
+    ip_address: str
+    machine_name: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}

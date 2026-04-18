@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Exchange{% endblock %}
+{% block content %}
+<h2 class="page-title">Dashboard</h2>
+<div id="cards" class="cards-grid"></div>
+<h3 class="section-title">Últimas transações</h3>
+<div class="table-wrap">
+  <table id="txTable" class="data-table">
+    <thead><tr>
+      <th>#</th><th>Direção</th><th>Entrada</th><th>Taxa</th><th>Saída</th><th>Cliente</th><th>Data</th>
+    </tr></thead>
+    <tbody id="txBody"></tbody>
+  </table>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  const isAdmin = '{{ user.role }}' === 'admin';
+  async function load() {
+    const s = await fetch('/api/dashboard/stats').then(r => r.json());
+    const cards = document.getElementById('cards');
+    cards.innerHTML = '';
+    addCard(cards, 'Minhas transações hoje', s.my_transactions_today, '');
+    if (s.total_volume_today !== null && s.total_volume_today !== undefined)
+      addCard(cards, 'Volume hoje', fmt(s.total_volume_today), 'USD/USDT');
+    if (s.total_fee_today !== null && s.total_fee_today !== undefined)
+      addCard(cards, 'Taxa arrecadada hoje', fmt(s.total_fee_today), '');
+    if (isAdmin) {
+      addCard(cards, 'Saldo total USD', fmt(s.usd_balance ?? 0), 'USD', 'card-green');
+      addCard(cards, 'Saldo total USDT', fmt(s.usdt_balance ?? 0), 'USDT', 'card-blue');
+      addCard(cards, 'Saldo USD Clientes', fmt(s.clients_usd_total ?? 0), 'USD', 'card-yellow');
+      addCard(cards, 'Saldo USDT Clientes', fmt(s.clients_usdt_total ?? 0), 'USDT', 'card-yellow');
+      addCard(cards, 'Empresa USD (Lucro)', fmt(s.company_usd ?? 0), 'USD', 'card-purple');
+      addCard(cards, 'Empresa USDT (Lucro)', fmt(s.company_usdt ?? 0), 'USDT', 'card-purple');
+    } else {
+      if (s.usdt_balance !== null && s.usdt_balance !== undefined)
+        addCard(cards, 'Saldo Caixa USDT', fmt(s.usdt_balance), 'USDT', 'card-blue');
+      if (s.usd_balance !== null && s.usd_balance !== undefined)
+        addCard(cards, 'Saldo Caixa USD', fmt(s.usd_balance), 'USD', 'card-green');
+    }
+    const body = document.getElementById('txBody');
+    body.innerHTML = s.recent_transactions.map(t => `
+      <tr>
+        <td>#${t.id}</td>
+        <td><span class="badge ${t.direction === 'usdt_to_usd' ? 'badge-blue' : 'badge-green'}">${t.direction === 'usdt_to_usd' ? 'USDT→USD' : 'USD→USDT'}</span></td>
+        <td>${fmt(t.amount_in)}</td>
+        <td>${fmt(t.fee_amount)} (${t.fee_pct}%)</td>
+        <td>${fmt(t.amount_out)}</td>
+        <td>${t.client_name || '—'}</td>
+        <td>${fmtDT(t.created_at)}</td>
+      </tr>`).join('');
+  }
+  function addCard(parent, label, value, unit, cls = 'card-default') {
+    parent.innerHTML += `<div class="stat-card ${cls}"><div class="stat-label">${label}</div><div class="stat-value">${value} <span class="stat-unit">${unit}</span></div></div>`;
+  }
+  function fmt(n) { return Number(n).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2}); }
+  function fmtDT(s) { return new Date(s).toLocaleString('pt-BR', {timeZone: 'America/Sao_Paulo'}); }
+  load();
+</script>
+{% endblock %}

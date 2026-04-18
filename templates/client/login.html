@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Acesso do Cliente — Exchange</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="auth-body client-auth-body">
+  <div class="auth-card">
+    <div class="auth-logo">📱</div>
+    <h1 class="auth-title">Área do Cliente</h1>
+    <p class="auth-sub">Acesse com seu WhatsApp</p>
+
+    <div id="stepPhone">
+      <form id="phoneForm">
+        <div class="form-group">
+          <label>Número do WhatsApp</label>
+          <input type="tel" id="phone" required placeholder="5511999999999" autocomplete="tel">
+          <small>Somente números, com código do país (55 para Brasil)</small>
+        </div>
+        <div id="phoneErr" class="alert alert-error" style="display:none"></div>
+        <button type="submit" class="btn btn-primary btn-full">Enviar código</button>
+      </form>
+    </div>
+
+    <div id="stepOtp" style="display:none">
+      <p class="otp-hint">📲 Enviamos um código de 6 dígitos para o seu WhatsApp</p>
+      <form id="otpForm">
+        <div class="form-group">
+          <label>Código recebido</label>
+          <input type="text" id="otp" maxlength="6" required placeholder="000000"
+                 pattern="[0-9]{6}" inputmode="numeric" autocomplete="one-time-code" class="otp-input">
+        </div>
+        <div id="otpErr" class="alert alert-error" style="display:none"></div>
+        <button type="submit" class="btn btn-primary btn-full">Entrar</button>
+        <button type="button" class="btn btn-outline btn-full" style="margin-top:.5rem" onclick="backToPhone()">Voltar</button>
+      </form>
+    </div>
+
+    <div class="auth-footer">
+      <a href="/login">Acesso para operadores →</a>
+    </div>
+  </div>
+  <script>
+    let savedPhone = '';
+    document.getElementById('phoneForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const errEl = document.getElementById('phoneErr'); errEl.style.display = 'none';
+      const btn = e.target.querySelector('button'); btn.disabled = true; btn.textContent = 'Enviando...';
+      savedPhone = document.getElementById('phone').value;
+      try {
+        await fetch('/api/client/request-otp', {
+          method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({phone: savedPhone}),
+        });
+        document.getElementById('stepPhone').style.display = 'none';
+        document.getElementById('stepOtp').style.display = 'block';
+      } catch {
+        errEl.textContent = 'Erro ao enviar código. Tente novamente.';
+        errEl.style.display = 'block';
+      }
+      btn.disabled = false; btn.textContent = 'Enviar código';
+    });
+    document.getElementById('otpForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const errEl = document.getElementById('otpErr'); errEl.style.display = 'none';
+      const btn = e.target.querySelector('button'); btn.disabled = true; btn.textContent = 'Verificando...';
+      try {
+        const r = await fetch('/api/client/verify-otp', {
+          method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({phone: savedPhone, code: document.getElementById('otp').value}),
+        });
+        if (r.ok) { window.location.href = '/client/dashboard'; }
+        else { const d = await r.json(); errEl.textContent = d.detail || 'Código inválido'; errEl.style.display = 'block'; }
+      } catch { errEl.textContent = 'Erro de conexão'; errEl.style.display = 'block'; }
+      btn.disabled = false; btn.textContent = 'Entrar';
+    });
+    function backToPhone() {
+      document.getElementById('stepOtp').style.display = 'none';
+      document.getElementById('stepPhone').style.display = 'block';
+    }
+  </script>
+</body>
+</html>

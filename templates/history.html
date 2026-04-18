@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Histórico — Exchange{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h2 class="page-title">Histórico de Transações</h2>
+  <a href="/transactions/new" class="btn btn-primary">+ Nova Troca</a>
+</div>
+<div class="filters">
+  <select id="filterDir" onchange="load()">
+    <option value="">Todas as direções</option>
+    <option value="usdt_to_usd">USDT → USD</option>
+    <option value="usd_to_usdt">USD → USDT</option>
+  </select>
+</div>
+<div class="table-wrap">
+  <table class="data-table">
+    <thead><tr>
+      <th>#</th><th>Direção</th><th>Entrada</th><th>Taxa</th><th>Saída</th>
+      <th>Cliente</th><th>Operador</th><th>Data/Hora</th><th>Obs.</th>
+    </tr></thead>
+    <tbody id="txBody"></tbody>
+  </table>
+</div>
+<div class="pagination">
+  <button class="btn btn-sm btn-outline" onclick="prevPage()">← Anterior</button>
+  <span id="pageInfo">Pág. 1</span>
+  <button class="btn btn-sm btn-outline" onclick="nextPage()">Próxima →</button>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  let page = 0, perPage = 30, operatorsMap = {};
+  async function load() {
+    const dir = document.getElementById('filterDir').value;
+    let url = `/api/transactions?limit=${perPage}&offset=${page * perPage}`;
+    const txs = await fetch(url).then(r => r.json());
+    const filtered = dir ? txs.filter(t => t.direction === dir) : txs;
+    const body = document.getElementById('txBody');
+    body.innerHTML = filtered.map(t => `
+      <tr>
+        <td>#${t.id}</td>
+        <td><span class="badge ${t.direction === 'usdt_to_usd' ? 'badge-blue' : 'badge-green'}">${t.direction === 'usdt_to_usd' ? 'USDT→USD' : 'USD→USDT'}</span></td>
+        <td>${fmt(t.amount_in)}</td>
+        <td>${fmt(t.fee_amount)} (${t.fee_pct}%)</td>
+        <td>${fmt(t.amount_out)}</td>
+        <td>${t.client_name || '—'}</td>
+        <td>#${t.operator_id}</td>
+        <td>${fmtDT(t.created_at)}</td>
+        <td>${t.notes || '—'}</td>
+      </tr>`).join('');
+    document.getElementById('pageInfo').textContent = `Pág. ${page + 1}`;
+  }
+  function prevPage() { if (page > 0) { page--; load(); } }
+  function nextPage() { page++; load(); }
+  function fmt(n) { return Number(n).toLocaleString('pt-BR', {minimumFractionDigits: 2}); }
+  function fmtDT(s) { return new Date(s).toLocaleString('pt-BR', {timeZone: 'America/Sao_Paulo'}); }
+  load();
+</script>
+{% endblock %}

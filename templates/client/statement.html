@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Extrato — Exchange</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="client-body">
+  <nav class="client-navbar">
+    <div class="nav-brand">💱 Exchange</div>
+    <div class="nav-links">
+      <a href="/client/dashboard">Saldo</a>
+      <a href="/client/deposit">Depositar USDT</a>
+      <a href="/client/statement" class="active">Extrato</a>
+    </div>
+    <div class="nav-user">
+      <span>{{ client.name }}</span>
+      <button class="btn-sm btn-outline" onclick="logout()">Sair</button>
+    </div>
+  </nav>
+  <main class="container">
+    <h2 class="page-title">Extrato</h2>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr>
+          <th>#</th><th>Tipo</th><th>Valor recebido</th><th>Taxa</th><th>Valor entregue</th><th>Data/Hora</th>
+        </tr></thead>
+        <tbody id="stBody"></tbody>
+      </table>
+    </div>
+    <p id="emptyMsg" style="text-align:center;color:#888;display:none">Nenhuma transação encontrada.</p>
+  </main>
+  <script>
+    function fmt(n) { return Number(n).toLocaleString('pt-BR', {minimumFractionDigits: 2}); }
+    function fmtDT(s) { return new Date(s).toLocaleString('pt-BR', {timeZone: 'America/Sao_Paulo'}); }
+    async function load() {
+      const txs = await fetch('/api/client/me/statement').then(r => r.json());
+      const body = document.getElementById('stBody');
+      if (!txs.length) { document.getElementById('emptyMsg').style.display = 'block'; return; }
+      body.innerHTML = txs.map(t => {
+        const cIn = t.direction === 'usdt_to_usd' ? 'USDT' : 'USD';
+        const cOut = t.direction === 'usdt_to_usd' ? 'USD' : 'USDT';
+        return `<tr>
+          <td>#${t.id}</td>
+          <td><span class="badge ${t.direction === 'usdt_to_usd' ? 'badge-blue' : 'badge-green'}">${t.direction === 'usdt_to_usd' ? 'USDT→USD' : 'USD→USDT'}</span></td>
+          <td>${fmt(t.amount_in)} ${cIn}</td>
+          <td>${fmt(t.fee_amount)} ${cIn} (${t.fee_pct}%)</td>
+          <td>${fmt(t.amount_out)} ${cOut}</td>
+          <td>${fmtDT(t.created_at)}</td>
+        </tr>`;
+      }).join('');
+    }
+    async function logout() {
+      await fetch('/api/client/logout', {method:'POST'});
+      window.location.href = '/client/login';
+    }
+    load();
+  </script>
+</body>
+</html>
