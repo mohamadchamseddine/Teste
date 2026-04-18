@@ -38,6 +38,7 @@ class User(Base):
     id = Column(Integer, primary_key=True)
     username = Column(String(100), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=False)
+    pin_hash = Column(String(255), nullable=True)
     role = Column(Enum(UserRole), nullable=False, default=UserRole.operator)
     is_active = Column(Boolean, default=True)
     can_see_profits = Column(Boolean, default=False)

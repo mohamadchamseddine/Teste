@@ -21,11 +21,31 @@
   <div class="table-wrap">
     <table class="data-table">
       <thead><tr>
-        <th>#</th><th>Usuário</th><th>Cargo</th><th>Status</th>
+        <th>#</th><th>Usuário</th><th>Cargo</th><th>Status</th><th>PIN</th>
         <th>Ver Lucros</th><th>Ver Volume</th><th>Ver Caixa</th><th>Ações</th>
       </tr></thead>
       <tbody id="opBody"></tbody>
     </table>
+  </div>
+</div>
+
+<div id="pinModal" class="modal" style="display:none">
+  <div class="modal-card">
+    <h3>Trocar PIN — <span id="pinOpName"></span></h3>
+    <form id="pinForm">
+      <input type="hidden" id="pinOpId">
+      <div class="form-group">
+        <label>Novo PIN (4 dígitos)</label>
+        <input type="password" id="newPin" required maxlength="4" inputmode="numeric"
+               placeholder="0000" pattern="[0-9]{4}" autocomplete="off" class="otp-input">
+      </div>
+      <div id="pinErr" class="alert alert-error" style="display:none"></div>
+      <div id="pinOk" class="alert alert-success" style="display:none"></div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Salvar PIN</button>
+        <button type="button" class="btn btn-outline" onclick="closePinModal()">Fechar</button>
+      </div>
+    </form>
   </div>
 </div>
 
@@ -40,6 +60,12 @@
       <div class="form-group">
         <label>Senha</label>
         <input type="password" id="opPassword" required>
+      </div>
+      <div class="form-group">
+        <label>PIN de transação (4 dígitos)</label>
+        <input type="password" id="opPin" required maxlength="4" inputmode="numeric" placeholder="0000"
+               pattern="[0-9]{4}" autocomplete="off">
+        <small>O operador precisará digitar este PIN para confirmar cada troca</small>
       </div>
       <div class="form-group">
         <label>Cargo</label>
@@ -79,13 +105,15 @@
         <td>${o.username}</td>
         <td>${o.role}</td>
         <td><span class="badge ${o.is_active ? 'badge-green' : 'badge-red'}">${o.is_active ? 'Ativo' : 'Inativo'}</span></td>
+        <td><span class="badge ${o.has_pin ? 'badge-green' : 'badge-red'}">${o.has_pin ? '✓ Cadastrado' : '✗ Sem PIN'}</span></td>
         <td><input type="checkbox" ${o.can_see_profits?'checked':''} onchange="updatePerm(${o.id},'can_see_profits',this.checked)"></td>
         <td><input type="checkbox" ${o.can_see_volume?'checked':''} onchange="updatePerm(${o.id},'can_see_volume',this.checked)"></td>
         <td><input type="checkbox" ${o.can_see_balance?'checked':''} onchange="updatePerm(${o.id},'can_see_balance',this.checked)"></td>
-        <td>
+        <td style="display:flex;gap:.4rem;flex-wrap:wrap">
           <button class="btn btn-sm ${o.is_active ? 'btn-danger' : 'btn-outline'}" onclick="toggleActive(${o.id},${!o.is_active})">
             ${o.is_active ? 'Desativar' : 'Ativar'}
           </button>
+          <button class="btn btn-sm btn-outline" onclick="openPinModal(${o.id},'${o.username}')">Trocar PIN</button>
         </td>
       </tr>`).join('');
   }
@@ -105,9 +133,33 @@
     try {
       await fetch('/api/operators', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({username: document.getElementById('opUsername').value, password: document.getElementById('opPassword').value, role: document.getElementById('opRole').value}),
+        body: JSON.stringify({username: document.getElementById('opUsername').value, password: document.getElementById('opPassword').value, pin: document.getElementById('opPin').value, role: document.getElementById('opRole').value}),
       }).then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.detail); return d; });
       closeOpModal(); e.target.reset(); loadOps();
+    } catch (err) { errEl.textContent = err.message; errEl.style.display = 'block'; }
+    btn.disabled = false;
+  });
+  function openPinModal(id, name) {
+    document.getElementById('pinOpId').value = id;
+    document.getElementById('pinOpName').textContent = name;
+    document.getElementById('newPin').value = '';
+    document.getElementById('pinErr').style.display = 'none';
+    document.getElementById('pinOk').style.display = 'none';
+    document.getElementById('pinModal').style.display = 'flex';
+  }
+  function closePinModal() { document.getElementById('pinModal').style.display = 'none'; }
+  document.getElementById('pinForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errEl = document.getElementById('pinErr'); const okEl = document.getElementById('pinOk');
+    errEl.style.display = 'none'; okEl.style.display = 'none';
+    const btn = e.target.querySelector('button[type=submit]'); btn.disabled = true;
+    try {
+      await fetch(`/api/operators/${document.getElementById('pinOpId').value}/pin`, {
+        method: 'PUT', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({pin: document.getElementById('newPin').value}),
+      }).then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.detail); return d; });
+      okEl.textContent = '✓ PIN atualizado!'; okEl.style.display = 'block';
+      loadOps();
     } catch (err) { errEl.textContent = err.message; errEl.style.display = 'block'; }
     btn.disabled = false;
   });

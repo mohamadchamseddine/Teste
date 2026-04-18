@@ -163,6 +163,16 @@ async def balance_page(request: Request, db: AsyncSession = Depends(get_db)):
     return templates.TemplateResponse("balance.html", {"request": request, "user": user})
 
 
+@app.get("/profits", response_class=HTMLResponse)
+async def profits_page(request: Request, db: AsyncSession = Depends(get_db)):
+    user = await get_user_from_cookie(request, db)
+    if not user:
+        return RedirectResponse("/login")
+    if user.role != models.UserRole.admin:
+        return RedirectResponse("/dashboard")
+    return templates.TemplateResponse("profits.html", {"request": request, "user": user})
+
+
 @app.get("/audit", response_class=HTMLResponse)
 async def audit_page(request: Request, db: AsyncSession = Depends(get_db)):
     user = await get_user_from_cookie(request, db)

@@ -46,6 +46,15 @@
       <label>Observações</label>
       <input type="text" id="notes" placeholder="Observações opcionais">
     </div>
+
+    <div class="pin-section">
+      <div class="form-group">
+        <label>🔒 Seu PIN de 4 dígitos (obrigatório para confirmar)</label>
+        <input type="password" id="operator_pin" required maxlength="4" inputmode="numeric"
+               placeholder="••••" pattern="[0-9]{4}" autocomplete="off" class="pin-input">
+      </div>
+    </div>
+
     <div id="error" class="alert alert-error" style="display:none"></div>
     <div id="success" class="alert alert-success" style="display:none"></div>
     <div class="form-actions">
@@ -93,6 +102,7 @@
     const body = {
       direction: document.getElementById('direction').value,
       amount_in: parseFloat(document.getElementById('amount_in').value),
+      operator_pin: document.getElementById('operator_pin').value,
       client_id: clientId ? parseInt(clientId) : null,
       client_name: document.getElementById('client_name').value || null,
       notes: document.getElementById('notes').value || null,

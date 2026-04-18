@@ -3,8 +3,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from database import get_db
-from auth import require_admin, hash_password
-from schemas import OperatorCreate, OperatorUpdate, UserOut
+from auth import require_admin, get_current_user, hash_password, hash_pin
+from schemas import OperatorCreate, OperatorUpdate, OperatorSetPin, UserOut
 import models
 import audit
 
@@ -17,7 +17,13 @@ async def list_operators(
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(select(models.User).order_by(models.User.created_at))
-    return result.scalars().all()
+    users = result.scalars().all()
+    out = []
+    for u in users:
+        d = UserOut.model_validate(u)
+        d.has_pin = u.pin_hash is not None
+        out.append(d)
+    return out
 
 
 @router.post("", response_model=UserOut, status_code=status.HTTP_201_CREATED)
@@ -34,6 +40,7 @@ async def create_operator(
     user = models.User(
         username=data.username,
         password_hash=hash_password(data.password),
+        pin_hash=hash_pin(data.pin),
         role=data.role,
     )
     db.add(user)
@@ -47,7 +54,9 @@ async def create_operator(
     )
     await db.commit()
     await db.refresh(user)
-    return user
+    result = UserOut.model_validate(user)
+    result.has_pin = user.pin_hash is not None
+    return result
 
 
 @router.patch("/{operator_id}", response_model=UserOut)
@@ -94,4 +103,37 @@ async def update_operator(
     )
     await db.commit()
     await db.refresh(user)
-    return user
+    out = UserOut.model_validate(user)
+    out.has_pin = user.pin_hash is not None
+    return out
+
+
+@router.put("/{operator_id}/pin", response_model=UserOut)
+async def set_operator_pin(
+    operator_id: int,
+    data: OperatorSetPin,
+    request: Request,
+    current_user: models.User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    # Admin pode trocar PIN de qualquer operador; operador só pode trocar o próprio
+    if current_user.role != models.UserRole.admin and current_user.id != operator_id:
+        raise HTTPException(status_code=403, detail="Acesso negado")
+
+    result = await db.execute(select(models.User).where(models.User.id == operator_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="Operador não encontrado")
+
+    user.pin_hash = hash_pin(data.pin)
+
+    await audit.log(
+        db, action="set_pin", username=current_user.username,
+        request=request, user_id=current_user.id,
+        entity_type="operator", entity_id=user.id,
+    )
+    await db.commit()
+    await db.refresh(user)
+    out = UserOut.model_validate(user)
+    out.has_pin = True
+    return out

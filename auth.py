@@ -25,6 +25,16 @@ def verify_password(plain: str, hashed: str) -> bool:
     return pwd_context.verify(plain, hashed)
 
 
+def hash_pin(pin: str) -> str:
+    return pwd_context.hash(pin)
+
+
+def verify_pin(plain_pin: str, hashed_pin: Optional[str]) -> bool:
+    if not hashed_pin:
+        return False
+    return pwd_context.verify(plain_pin, hashed_pin)
+
+
 def create_token(subject: str, expires_hours: Optional[int] = None) -> str:
     hours = expires_hours or settings.access_token_expire_hours
     expire = datetime.now(timezone.utc) + timedelta(hours=hours)

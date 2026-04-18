@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Lucros — Exchange{% endblock %}
+{% block content %}
+<h2 class="page-title">Relatório de Lucros</h2>
+
+<div class="cards-grid" id="summaryCards"></div>
+
+<h3 class="section-title">Lucro por cliente</h3>
+<div class="table-wrap">
+  <table class="data-table">
+    <thead><tr>
+      <th>#</th>
+      <th>Cliente</th>
+      <th>Telefone</th>
+      <th>Transações</th>
+      <th>Lucro USDT (taxas USDT→USD)</th>
+      <th>Lucro USD (taxas USD→USDT)</th>
+      <th>Total combinado</th>
+    </tr></thead>
+    <tbody id="clientBody"></tbody>
+  </table>
+</div>
+<p id="emptyClients" style="text-align:center;color:#64748b;padding:1rem;display:none">
+  Nenhuma transação vinculada a clientes ainda.
+</p>
+{% endblock %}
+{% block scripts %}
+<script>
+  function fmt(n) { return Number(n).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 6}); }
+
+  async function load() {
+    const data = await fetch('/api/dashboard/profits').then(r => r.json());
+
+    const cards = document.getElementById('summaryCards');
+    cards.innerHTML = `
+      <div class="stat-card card-purple">
+        <div class="stat-label">Total de transações</div>
+        <div class="stat-value">${data.total_transactions}</div>
+      </div>
+      <div class="stat-card card-blue">
+        <div class="stat-label">Lucro total USDT</div>
+        <div class="stat-value">${fmt(data.total_fee_usdt)} <span class="stat-unit">USDT</span></div>
+        <div style="font-size:.75rem;opacity:.7;margin-top:.25rem">Taxas de USDT→USD</div>
+      </div>
+      <div class="stat-card card-green">
+        <div class="stat-label">Lucro total USD</div>
+        <div class="stat-value">${fmt(data.total_fee_usd)} <span class="stat-unit">USD</span></div>
+        <div style="font-size:.75rem;opacity:.7;margin-top:.25rem">Taxas de USD→USDT</div>
+      </div>
+      <div class="stat-card card-yellow">
+        <div class="stat-label">Volume USDT trocado</div>
+        <div class="stat-value">${fmt(data.total_volume_usdt)} <span class="stat-unit">USDT</span></div>
+      </div>
+      <div class="stat-card card-yellow">
+        <div class="stat-label">Volume USD trocado</div>
+        <div class="stat-value">${fmt(data.total_volume_usd)} <span class="stat-unit">USD</span></div>
+      </div>
+    `;
+
+    const body = document.getElementById('clientBody');
+    if (!data.per_client.length) {
+      document.getElementById('emptyClients').style.display = 'block';
+      return;
+    }
+
+    body.innerHTML = data.per_client.map((c, i) => `
+      <tr>
+        <td>${i + 1}</td>
+        <td><strong>${c.client_name}</strong></td>
+        <td>${c.phone}</td>
+        <td>${c.total_transactions}</td>
+        <td>${fmt(c.fee_usdt)} USDT</td>
+        <td>${fmt(c.fee_usd)} USD</td>
+        <td><strong>${fmt(c.total_fee_usd_equivalent)}</strong></td>
+      </tr>
+    `).join('');
+  }
+
+  load();
+</script>
+{% endblock %}

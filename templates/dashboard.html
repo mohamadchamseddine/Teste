@@ -25,6 +25,10 @@
       addCard(cards, 'Volume hoje', fmt(s.total_volume_today), 'USD/USDT');
     if (s.total_fee_today !== null && s.total_fee_today !== undefined)
       addCard(cards, 'Taxa arrecadada hoje', fmt(s.total_fee_today), '');
+    if (s.total_fee_usdt_alltime !== null && s.total_fee_usdt_alltime !== undefined)
+      addCard(cards, 'Lucro total USDT', fmt(s.total_fee_usdt_alltime), 'USDT', 'card-purple');
+    if (s.total_fee_usd_alltime !== null && s.total_fee_usd_alltime !== undefined)
+      addCard(cards, 'Lucro total USD', fmt(s.total_fee_usd_alltime), 'USD', 'card-purple');
     if (isAdmin) {
       addCard(cards, 'Saldo total USD', fmt(s.usd_balance ?? 0), 'USD', 'card-green');
       addCard(cards, 'Saldo total USDT', fmt(s.usdt_balance ?? 0), 'USDT', 'card-blue');

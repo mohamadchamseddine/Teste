@@ -21,6 +21,7 @@ class UserOut(BaseModel):
     username: str
     role: UserRole
     is_active: bool
+    has_pin: bool = False
     can_see_profits: bool
     can_see_volume: bool
     can_see_balance: bool
@@ -28,13 +29,29 @@ class UserOut(BaseModel):
 
     model_config = {"from_attributes": True}
 
+    @classmethod
+    def model_validate(cls, obj, **kwargs):
+        data = super().model_validate(obj, **kwargs)
+        if hasattr(obj, "pin_hash"):
+            data.has_pin = obj.pin_hash is not None
+        return data
+
 
 # ── Operators ─────────────────────────────────────────────────────────────────
 
 class OperatorCreate(BaseModel):
     username: str
     password: str
+    pin: str
     role: UserRole = UserRole.operator
+
+    @field_validator("pin")
+    @classmethod
+    def validate_pin(cls, v: str) -> str:
+        digits = v.strip()
+        if not digits.isdigit() or len(digits) != 4:
+            raise ValueError("PIN deve ter exatamente 4 dígitos numéricos")
+        return digits
 
 
 class OperatorUpdate(BaseModel):
@@ -42,6 +59,18 @@ class OperatorUpdate(BaseModel):
     can_see_profits: Optional[bool] = None
     can_see_volume: Optional[bool] = None
     can_see_balance: Optional[bool] = None
+
+
+class OperatorSetPin(BaseModel):
+    pin: str
+
+    @field_validator("pin")
+    @classmethod
+    def validate_pin(cls, v: str) -> str:
+        digits = v.strip()
+        if not digits.isdigit() or len(digits) != 4:
+            raise ValueError("PIN deve ter exatamente 4 dígitos numéricos")
+        return digits
 
 
 # ── Settings ──────────────────────────────────────────────────────────────────
@@ -66,6 +95,7 @@ class FeeOut(BaseModel):
 class TransactionCreate(BaseModel):
     direction: Direction
     amount_in: float
+    operator_pin: str
     client_id: Optional[int] = None
     client_name: Optional[str] = None
     notes: Optional[str] = None
@@ -76,6 +106,14 @@ class TransactionCreate(BaseModel):
         if v <= 0:
             raise ValueError("Valor deve ser maior que zero")
         return round(v, 6)
+
+    @field_validator("operator_pin")
+    @classmethod
+    def validate_pin(cls, v: str) -> str:
+        digits = v.strip()
+        if not digits.isdigit() or len(digits) != 4:
+            raise ValueError("PIN deve ter exatamente 4 dígitos numéricos")
+        return digits
 
 
 class TransactionOut(BaseModel):
@@ -125,6 +163,16 @@ class ClientOut(BaseModel):
 class ClientBalanceOut(BaseModel):
     usdt_balance: float
     usd_balance: float
+
+
+class ClientProfitOut(BaseModel):
+    client_id: int
+    client_name: str
+    phone: str
+    total_transactions: int
+    fee_usdt: float
+    fee_usd: float
+    total_fee_usd_equivalent: float
 
 
 # ── OTP ───────────────────────────────────────────────────────────────────────
@@ -180,13 +228,29 @@ class DashboardStats(BaseModel):
     my_transactions_today: int
     total_volume_today: Optional[float] = None
     total_fee_today: Optional[float] = None
+    # All-time profits
+    total_fee_usdt_alltime: Optional[float] = None
+    total_fee_usd_alltime: Optional[float] = None
+    # Cash balances
     usdt_balance: Optional[float] = None
     usd_balance: Optional[float] = None
+    # Client aggregates (admin only)
     clients_usdt_total: Optional[float] = None
     clients_usd_total: Optional[float] = None
     company_usdt: Optional[float] = None
     company_usd: Optional[float] = None
     recent_transactions: list[TransactionOut] = []
+
+
+# ── Profits ───────────────────────────────────────────────────────────────────
+
+class ProfitSummary(BaseModel):
+    total_transactions: int
+    total_fee_usdt: float
+    total_fee_usd: float
+    total_volume_usdt: float
+    total_volume_usd: float
+    per_client: list[ClientProfitOut] = []
 
 
 # ── Audit ─────────────────────────────────────────────────────────────────────
