@@ -9,6 +9,7 @@
   <table class="data-table">
     <thead><tr>
       <th>#</th><th>Nome</th><th>Telefone</th><th>Saldo USDT</th><th>Saldo USD</th>
+      <th>Limite Crédito</th><th>Crédito Usado</th>
       <th>Endereço USDT</th><th>Status</th><th>Cadastro</th>
     </tr></thead>
     <tbody id="clientBody"></tbody>
@@ -26,6 +27,22 @@
       <div class="form-group">
         <label>WhatsApp (somente números)</label>
         <input type="tel" id="cPhone" required placeholder="5511999999999">
+      </div>
+      <hr style="margin:1rem 0;border-color:#e2e8f0">
+      <p style="font-size:.85rem;color:#64748b;margin-bottom:.75rem">Configurações de crédito (opcional)</p>
+      <div class="form-group">
+        <label>Limite de crédito</label>
+        <input type="number" id="cCreditLimit" step="0.01" min="0" value="0" placeholder="0.00">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Juros (%)</label>
+          <input type="number" id="cInterestPct" step="0.01" min="0" max="100" value="0" placeholder="0.00">
+        </div>
+        <div class="form-group">
+          <label>Período (dias)</label>
+          <input type="number" id="cInterestDays" min="1" value="30" placeholder="30">
+        </div>
       </div>
       <div id="cError" class="alert alert-error" style="display:none"></div>
       <div class="form-actions">
@@ -47,6 +64,10 @@
         <td>${c.phone}</td>
         <td>${fmt(c.usdt_balance)}</td>
         <td>${fmt(c.usd_balance)}</td>
+        <td>${fmt(c.credit_limit)}</td>
+        <td>${c.credit_used > 0
+          ? `<span style="color:#ef4444;font-weight:600">${fmt(c.credit_used)}</span>`
+          : `<span style="color:#64748b">0,00</span>`}</td>
         <td>${c.deposit_address ? `<code class="addr">${c.deposit_address.slice(0,12)}…</code>` : '—'}</td>
         <td><span class="badge ${c.is_active ? 'badge-green' : 'badge-red'}">${c.is_active ? 'Ativo' : 'Inativo'}</span></td>
         <td>${fmtDT(c.created_at)}</td>
@@ -66,7 +87,13 @@
       await fetch('/api/clients', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({name: document.getElementById('cName').value, phone: document.getElementById('cPhone').value}),
+        body: JSON.stringify({
+          name: document.getElementById('cName').value,
+          phone: document.getElementById('cPhone').value,
+          credit_limit: parseFloat(document.getElementById('cCreditLimit').value) || 0,
+          credit_interest_pct: parseFloat(document.getElementById('cInterestPct').value) || 0,
+          credit_interest_days: parseInt(document.getElementById('cInterestDays').value) || 30,
+        }),
       }).then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.detail); return d; });
       closeModal();
       e.target.reset();

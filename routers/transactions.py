@@ -95,12 +95,63 @@ async def create_transaction(
     # Load client if provided
     client = None
     client_name = data.client_name
+    credit_amount_used = 0.0
     if data.client_id:
         cl_res = await db.execute(select(models.Client).where(models.Client.id == data.client_id))
         client = cl_res.scalar_one_or_none()
         if not client:
             raise HTTPException(status_code=404, detail="Cliente não encontrado")
         client_name = client_name or client.name
+
+        # Check if credit is needed
+        if data.direction == models.Direction.usdt_to_usd:
+            client_balance = client.usdt_balance
+        else:
+            client_balance = client.usd_balance
+
+        if client_balance < data.amount_in:
+            credit_needed = round(data.amount_in - max(0.0, client_balance), 6)
+            available_credit = round(client.credit_limit - client.credit_used, 6)
+
+            if credit_needed > available_credit + 0.000001:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"Saldo insuficiente. Saldo: {client_balance:.2f}, Crédito disponível: {available_credit:.2f}",
+                )
+
+            if not data.credit_approval_code:
+                raise HTTPException(
+                    status_code=402,
+                    detail={
+                        "credit_needed": True,
+                        "client_id": client.id,
+                        "direction": data.direction.value,
+                        "amount_in": data.amount_in,
+                        "client_balance": client_balance,
+                        "credit_amount": credit_needed,
+                        "interest_pct": client.credit_interest_pct,
+                        "interest_days": client.credit_interest_days,
+                    },
+                )
+
+            # Verify credit approval OTP
+            otp_res = await db.execute(
+                select(models.CreditApprovalOTP).where(
+                    models.CreditApprovalOTP.client_id == client.id,
+                    models.CreditApprovalOTP.code == data.credit_approval_code,
+                    models.CreditApprovalOTP.used == False,
+                    models.CreditApprovalOTP.direction == data.direction,
+                )
+            )
+            otp = otp_res.scalar_one_or_none()
+            if not otp:
+                raise HTTPException(status_code=400, detail="Código de aprovação inválido ou já utilizado")
+            if otp.expires_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
+                raise HTTPException(status_code=400, detail="Código de aprovação expirado")
+
+            otp.used = True
+            credit_amount_used = credit_needed
+            client.credit_used = round(client.credit_used + credit_needed, 6)
 
     # Create transaction
     tx = models.Transaction(
@@ -113,6 +164,7 @@ async def create_transaction(
         amount_out=amount_out,
         client_name=client_name,
         notes=data.notes,
+        credit_amount_used=credit_amount_used,
     )
     db.add(tx)
     await db.flush()
@@ -132,10 +184,10 @@ async def create_transaction(
     # Update client balances
     if client:
         if data.direction == models.Direction.usdt_to_usd:
-            client.usdt_balance = round(client.usdt_balance - data.amount_in, 6)
+            client.usdt_balance = round(max(0.0, client.usdt_balance) - data.amount_in + credit_amount_used, 6)
             client.usd_balance = round(client.usd_balance + amount_out, 6)
         else:
-            client.usd_balance = round(client.usd_balance - data.amount_in, 6)
+            client.usd_balance = round(max(0.0, client.usd_balance) - data.amount_in + credit_amount_used, 6)
             client.usdt_balance = round(client.usdt_balance + amount_out, 6)
 
     await audit.log(

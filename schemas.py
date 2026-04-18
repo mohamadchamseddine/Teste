@@ -96,6 +96,23 @@ class FeeOut(BaseModel):
 
 # ── Transactions ──────────────────────────────────────────────────────────────
 
+class CreditRequiredInfo(BaseModel):
+    credit_needed: bool = True
+    client_id: int
+    direction: Direction
+    amount_in: float
+    client_balance: float
+    credit_amount: float
+    interest_pct: float
+    interest_days: int
+
+
+class CreditApprovalRequest(BaseModel):
+    client_id: int
+    direction: Direction
+    amount_in: float
+
+
 class TransactionCreate(BaseModel):
     direction: Direction
     amount_in: float
@@ -103,6 +120,7 @@ class TransactionCreate(BaseModel):
     client_id: Optional[int] = None
     client_name: Optional[str] = None
     notes: Optional[str] = None
+    credit_approval_code: Optional[str] = None
 
     @field_validator("amount_in")
     @classmethod
@@ -141,6 +159,9 @@ class TransactionOut(BaseModel):
 class ClientCreate(BaseModel):
     name: str
     phone: str
+    credit_limit: float = 0.0
+    credit_interest_pct: float = 0.0
+    credit_interest_days: int = 30
 
     @field_validator("phone")
     @classmethod
@@ -158,6 +179,10 @@ class ClientOut(BaseModel):
     is_active: bool
     usdt_balance: float
     usd_balance: float
+    credit_limit: float
+    credit_used: float
+    credit_interest_pct: float
+    credit_interest_days: int
     deposit_address: Optional[str]
     created_at: datetime
 

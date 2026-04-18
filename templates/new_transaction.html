@@ -3,80 +3,141 @@
 {% block content %}
 <h2 class="page-title">Nova Troca</h2>
 <div class="form-card">
-  <form id="txForm">
-    <div class="form-row">
-      <div class="form-group">
-        <label>Direção</label>
-        <select id="direction" required onchange="calcPreview()">
-          <option value="usdt_to_usd">USDT → USD (recebe USDT, entrega USD)</option>
-          <option value="usd_to_usdt">USD → USDT (recebe USD, entrega USDT)</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label>Valor recebido</label>
-        <input type="number" id="amount_in" step="0.000001" min="0.01" required placeholder="0.00" oninput="calcPreview()">
-      </div>
-    </div>
 
-    <div class="preview-box" id="preview" style="display:none">
+  <!-- Step 1: Transaction form -->
+  <div id="step1">
+    <form id="txForm">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Direção</label>
+          <select id="direction" required onchange="calcPreview()">
+            <option value="usdt_to_usd">USDT → USD (recebe USDT, entrega USD)</option>
+            <option value="usd_to_usdt">USD → USDT (recebe USD, entrega USDT)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Valor recebido</label>
+          <input type="number" id="amount_in" step="0.000001" min="0.01" required placeholder="0.00" oninput="calcPreview()">
+        </div>
+      </div>
+
+      <div class="preview-box" id="preview" style="display:none">
+        <div class="preview-row">
+          <span>Valor bruto:</span><strong id="pIn">—</strong>
+        </div>
+        <div class="preview-row">
+          <span>Taxa (<span id="pPct">—</span>%):</span><strong id="pFee">—</strong>
+        </div>
+        <div class="preview-row preview-total">
+          <span>Valor a entregar:</span><strong id="pOut">—</strong>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Cliente (opcional)</label>
+          <select id="client_id" onchange="checkClientBalance()">
+            <option value="">— Selecionar cliente cadastrado —</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Nome do cliente (avulso)</label>
+          <input type="text" id="client_name" placeholder="Nome para registro">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Observações</label>
+        <input type="text" id="notes" placeholder="Observações opcionais">
+      </div>
+
+      <div class="pin-section">
+        <div class="form-group">
+          <label>🔒 Seu PIN de 4 dígitos (obrigatório para confirmar)</label>
+          <input type="password" id="operator_pin" required maxlength="4" inputmode="numeric"
+                 placeholder="••••" pattern="[0-9]{4}" autocomplete="off" class="pin-input">
+        </div>
+      </div>
+
+      <div id="error" class="alert alert-error" style="display:none"></div>
+      <div id="success" class="alert alert-success" style="display:none"></div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Confirmar Troca</button>
+        <a href="/transactions" class="btn btn-outline">Cancelar</a>
+      </div>
+    </form>
+  </div>
+
+  <!-- Step 2: Credit warning + request approval -->
+  <div id="step2" style="display:none">
+    <div class="alert alert-error" style="margin-bottom:1.5rem">
+      <strong>⚠️ Esta operação utilizará crédito do cliente</strong>
+    </div>
+    <div class="preview-box">
       <div class="preview-row">
-        <span>Valor bruto:</span><strong id="pIn">—</strong>
+        <span>Valor da transação:</span><strong id="c2AmountIn">—</strong>
       </div>
       <div class="preview-row">
-        <span>Taxa (<span id="pPct">—</span>%):</span><strong id="pFee">—</strong>
+        <span>Saldo disponível do cliente:</span><strong id="c2Balance">—</strong>
       </div>
-      <div class="preview-row preview-total">
-        <span>Valor a entregar:</span><strong id="pOut">—</strong>
+      <div class="preview-row preview-total" style="color:#ef4444">
+        <span>Crédito necessário:</span><strong id="c2CreditAmount">—</strong>
       </div>
-    </div>
-
-    <div class="form-row">
-      <div class="form-group">
-        <label>Cliente (opcional)</label>
-        <select id="client_id">
-          <option value="">— Selecionar cliente cadastrado —</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label>Nome do cliente (avulso)</label>
-        <input type="text" id="client_name" placeholder="Nome para registro">
+      <div class="preview-row" style="color:#f59e0b">
+        <span>Juros:</span><strong id="c2Interest">—</strong>
       </div>
     </div>
-    <div class="form-group">
-      <label>Observações</label>
-      <input type="text" id="notes" placeholder="Observações opcionais">
-    </div>
-
-    <div class="pin-section">
-      <div class="form-group">
-        <label>🔒 Seu PIN de 4 dígitos (obrigatório para confirmar)</label>
-        <input type="password" id="operator_pin" required maxlength="4" inputmode="numeric"
-               placeholder="••••" pattern="[0-9]{4}" autocomplete="off" class="pin-input">
-      </div>
-    </div>
-
-    <div id="error" class="alert alert-error" style="display:none"></div>
-    <div id="success" class="alert alert-success" style="display:none"></div>
+    <p style="margin:1rem 0;color:#64748b;font-size:.9rem">
+      Confirme com o cliente se ele aceita as condições de crédito acima.
+      Se aceitar, clique em <strong>Solicitar Aprovação</strong> para enviar o código de confirmação via WhatsApp.
+    </p>
+    <div id="step2Error" class="alert alert-error" style="display:none"></div>
     <div class="form-actions">
-      <button type="submit" class="btn btn-primary">Confirmar Troca</button>
-      <a href="/transactions" class="btn btn-outline">Cancelar</a>
+      <button class="btn btn-primary" onclick="requestApproval()">Solicitar Aprovação via WhatsApp</button>
+      <button class="btn btn-outline" onclick="backToStep1()">Voltar</button>
     </div>
-  </form>
+  </div>
+
+  <!-- Step 3: Enter OTP from client -->
+  <div id="step3" style="display:none">
+    <div class="alert alert-success" style="margin-bottom:1.5rem">
+      <strong>✓ Código enviado ao cliente via WhatsApp</strong>
+    </div>
+    <p style="margin-bottom:1.5rem;color:#334155">
+      Peça ao cliente para informar o código que recebeu no WhatsApp e digite abaixo para concluir a transação:
+    </p>
+    <div class="form-group">
+      <label>Código de aprovação (6 dígitos)</label>
+      <input type="text" id="creditCode" maxlength="6" inputmode="numeric"
+             placeholder="000000" autocomplete="off"
+             style="font-size:1.5rem;letter-spacing:.3rem;text-align:center;max-width:200px">
+    </div>
+    <div id="step3Error" class="alert alert-error" style="display:none"></div>
+    <div id="step3Success" class="alert alert-success" style="display:none"></div>
+    <div class="form-actions">
+      <button class="btn btn-primary" onclick="submitWithCredit()">Confirmar Troca com Crédito</button>
+      <button class="btn btn-outline" onclick="backToStep1()">Cancelar</button>
+    </div>
+  </div>
+
 </div>
 {% endblock %}
 {% block scripts %}
 <script>
   let feePct = 1.0;
+  let clientsData = [];
+  let pendingCreditInfo = null;
+
   async function init() {
     const fee = await fetch('/api/settings/fee').then(r => r.json());
     feePct = fee.fee_pct;
     document.getElementById('pPct').textContent = feePct;
-    const clients = await fetch('/api/clients').then(r => r.json());
+    clientsData = await fetch('/api/clients').then(r => r.json());
     const sel = document.getElementById('client_id');
-    clients.forEach(c => {
+    clientsData.forEach(c => {
       sel.innerHTML += `<option value="${c.id}">${c.name} — ${c.phone}</option>`;
     });
   }
+
   function calcPreview() {
     const amount = parseFloat(document.getElementById('amount_in').value) || 0;
     const dir = document.getElementById('direction').value;
@@ -90,9 +151,103 @@
     document.getElementById('pOut').textContent = `${fmt(out)} ${cOut}`;
     document.getElementById('pPct').textContent = feePct;
     document.getElementById('preview').style.display = 'block';
+    checkClientBalance();
   }
+
+  function checkClientBalance() {
+    // Just recalc on change — actual check happens on submit
+  }
+
   function round6(n) { return Math.round(n * 1e6) / 1e6; }
   function fmt(n) { return Number(n).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 6}); }
+
+  function showStep(n) {
+    document.getElementById('step1').style.display = n === 1 ? 'block' : 'none';
+    document.getElementById('step2').style.display = n === 2 ? 'block' : 'none';
+    document.getElementById('step3').style.display = n === 3 ? 'block' : 'none';
+  }
+
+  function backToStep1() {
+    pendingCreditInfo = null;
+    showStep(1);
+  }
+
+  function showCreditWarning(info) {
+    pendingCreditInfo = info;
+    const dir = info.direction === 'usdt_to_usd' ? 'USDT' : 'USD';
+    document.getElementById('c2AmountIn').textContent = `${fmt(info.amount_in)} ${dir}`;
+    document.getElementById('c2Balance').textContent = `${fmt(info.client_balance)} ${dir}`;
+    document.getElementById('c2CreditAmount').textContent = `${fmt(info.credit_amount)} ${dir}`;
+    document.getElementById('c2Interest').textContent = `${info.interest_pct}% a cada ${info.interest_days} dias`;
+    document.getElementById('step2Error').style.display = 'none';
+    showStep(2);
+  }
+
+  async function requestApproval() {
+    if (!pendingCreditInfo) return;
+    const errEl = document.getElementById('step2Error');
+    errEl.style.display = 'none';
+    const btn = document.querySelector('#step2 .btn-primary');
+    btn.disabled = true; btn.textContent = 'Enviando...';
+    try {
+      await fetch('/api/credit/request-approval', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          client_id: pendingCreditInfo.client_id,
+          direction: pendingCreditInfo.direction,
+          amount_in: pendingCreditInfo.amount_in,
+        }),
+      }).then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.detail); return d; });
+      document.getElementById('step3Error').style.display = 'none';
+      document.getElementById('step3Success').style.display = 'none';
+      document.getElementById('creditCode').value = '';
+      showStep(3);
+    } catch (err) {
+      errEl.textContent = err.message;
+      errEl.style.display = 'block';
+    }
+    btn.disabled = false; btn.textContent = 'Solicitar Aprovação via WhatsApp';
+  }
+
+  async function submitWithCredit() {
+    const code = document.getElementById('creditCode').value.trim();
+    const errEl = document.getElementById('step3Error');
+    const okEl = document.getElementById('step3Success');
+    errEl.style.display = 'none'; okEl.style.display = 'none';
+    if (!code || code.length !== 6) {
+      errEl.textContent = 'Digite o código de 6 dígitos.';
+      errEl.style.display = 'block';
+      return;
+    }
+    const btn = document.querySelector('#step3 .btn-primary');
+    btn.disabled = true; btn.textContent = 'Processando...';
+    const clientId = document.getElementById('client_id').value;
+    const body = {
+      direction: document.getElementById('direction').value,
+      amount_in: parseFloat(document.getElementById('amount_in').value),
+      operator_pin: document.getElementById('operator_pin').value,
+      client_id: clientId ? parseInt(clientId) : null,
+      client_name: document.getElementById('client_name').value || null,
+      notes: document.getElementById('notes').value || null,
+      credit_approval_code: code,
+    };
+    try {
+      const tx = await fetch('/api/transactions', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(body),
+      }).then(async r => { const d = await r.json(); if (!r.ok) throw new Error(typeof d.detail === 'object' ? JSON.stringify(d.detail) : d.detail); return d; });
+      okEl.textContent = `Troca #${tx.id} registrada! Entregue: ${fmt(tx.amount_out)}`;
+      okEl.style.display = 'block';
+      setTimeout(() => { backToStep1(); document.getElementById('txForm').reset(); document.getElementById('preview').style.display='none'; }, 2000);
+    } catch (err) {
+      errEl.textContent = err.message;
+      errEl.style.display = 'block';
+    }
+    btn.disabled = false; btn.textContent = 'Confirmar Troca com Crédito';
+  }
+
   document.getElementById('txForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const errEl = document.getElementById('error');
@@ -110,12 +265,22 @@
     const btn = e.target.querySelector('button[type=submit]');
     btn.disabled = true; btn.textContent = 'Processando...';
     try {
-      const tx = await fetch('/api/transactions', {
+      const resp = await fetch('/api/transactions', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(body),
-      }).then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.detail); return d; });
-      okEl.textContent = `Troca #${tx.id} registrada! Entregue: ${fmt(tx.amount_out)}`;
+      });
+      const d = await resp.json();
+      if (!resp.ok) {
+        // Check for credit required (402)
+        if (resp.status === 402 && d.detail && d.detail.credit_needed) {
+          showCreditWarning(d.detail);
+          btn.disabled = false; btn.textContent = 'Confirmar Troca';
+          return;
+        }
+        throw new Error(typeof d.detail === 'object' ? JSON.stringify(d.detail) : d.detail);
+      }
+      okEl.textContent = `Troca #${d.id} registrada! Entregue: ${fmt(d.amount_out)}`;
       okEl.style.display = 'block';
       document.getElementById('txForm').reset();
       document.getElementById('preview').style.display = 'none';

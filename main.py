@@ -12,7 +12,7 @@ from auth import get_current_user, get_current_client, decode_token, hash_passwo
 import models
 from scheduler import start_scheduler, stop_scheduler
 from routers import auth as auth_router
-from routers import operators, transactions, clients, balance, audit_router, dashboard
+from routers import operators, transactions, clients, balance, audit_router, dashboard, credit
 from routers import settings as settings_router
 
 logging.basicConfig(level=logging.INFO)
@@ -43,6 +43,7 @@ app.include_router(clients.router)
 app.include_router(balance.router)
 app.include_router(audit_router.router)
 app.include_router(dashboard.router)
+app.include_router(credit.router)
 
 
 async def seed_database():

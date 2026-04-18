@@ -59,6 +59,9 @@ async def create_client(
     client = models.Client(
         name=data.name,
         phone=data.phone,
+        credit_limit=data.credit_limit,
+        credit_interest_pct=data.credit_interest_pct,
+        credit_interest_days=data.credit_interest_days,
         deposit_address=deposit_address,
         deposit_address_index=next_idx if deposit_address else None,
     )

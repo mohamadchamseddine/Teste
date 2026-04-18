@@ -63,6 +63,12 @@ class Client(Base):
     is_active = Column(Boolean, default=True)
     usdt_balance = Column(Float, default=0.0)
     usd_balance = Column(Float, default=0.0)
+    # Credit
+    credit_limit = Column(Float, default=0.0)
+    credit_used = Column(Float, default=0.0)
+    credit_interest_pct = Column(Float, default=0.0)
+    credit_interest_days = Column(Integer, default=30)
+    # Deposit address
     deposit_address = Column(String(50), unique=True, nullable=True)
     deposit_address_index = Column(Integer, unique=True, nullable=True)
     created_at = Column(DateTime(timezone=True), default=utcnow)
@@ -70,6 +76,7 @@ class Client(Base):
     otps = relationship("OTPCode", back_populates="client")
     transactions = relationship("Transaction", back_populates="client")
     usdt_deposits = relationship("USDTDeposit", back_populates="client")
+    credit_approval_otps = relationship("CreditApprovalOTP", back_populates="client")
 
 
 class OTPCode(Base):
@@ -82,6 +89,23 @@ class OTPCode(Base):
     used = Column(Boolean, default=False)
 
     client = relationship("Client", back_populates="otps")
+
+
+class CreditApprovalOTP(Base):
+    __tablename__ = "credit_approval_otps"
+
+    id = Column(Integer, primary_key=True)
+    client_id = Column(Integer, ForeignKey("clients.id"), nullable=False)
+    code = Column(String(6), nullable=False)
+    direction = Column(Enum(Direction), nullable=False)
+    amount_in = Column(Float, nullable=False)
+    credit_amount = Column(Float, nullable=False)
+    interest_pct = Column(Float, nullable=False)
+    interest_days = Column(Integer, nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    used = Column(Boolean, default=False)
+
+    client = relationship("Client", back_populates="credit_approval_otps")
 
 
 class Transaction(Base):
@@ -97,6 +121,7 @@ class Transaction(Base):
     amount_out = Column(Float, nullable=False)
     client_name = Column(String(255), nullable=True)
     notes = Column(Text, nullable=True)
+    credit_amount_used = Column(Float, default=0.0)
     created_at = Column(DateTime(timezone=True), default=utcnow)
 
     operator = relationship("User", back_populates="transactions")
