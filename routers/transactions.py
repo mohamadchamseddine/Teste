@@ -112,6 +112,7 @@ async def create_transaction(
         if client_balance < data.amount_in:
             credit_needed = round(data.amount_in - max(0.0, client_balance), 6)
             available_credit = round(client.credit_limit - client.credit_used, 6)
+            interest_preview = round(credit_needed * client.credit_interest_pct / 100, 6)
 
             if credit_needed > available_credit + 0.000001:
                 raise HTTPException(
@@ -131,6 +132,7 @@ async def create_transaction(
                         "credit_amount": credit_needed,
                         "interest_pct": client.credit_interest_pct,
                         "interest_days": client.credit_interest_days,
+                        "interest_amount": interest_preview,
                     },
                 )
 
@@ -149,9 +151,12 @@ async def create_transaction(
             if otp.expires_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
                 raise HTTPException(status_code=400, detail="Código de aprovação expirado")
 
+            # Use OTP-stored values for consistency
             otp.used = True
-            credit_amount_used = credit_needed
-            client.credit_used = round(client.credit_used + credit_needed, 6)
+            credit_amount_used = otp.credit_amount
+            interest_charge = round(otp.credit_amount * otp.interest_pct / 100, 6)
+            # Post both principal and interest to credit_used immediately
+            client.credit_used = round(client.credit_used + credit_amount_used + interest_charge, 6)
 
     # Create transaction
     tx = models.Transaction(

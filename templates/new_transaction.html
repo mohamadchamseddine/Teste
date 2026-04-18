@@ -79,15 +79,19 @@
       <div class="preview-row">
         <span>Saldo disponível do cliente:</span><strong id="c2Balance">—</strong>
       </div>
-      <div class="preview-row preview-total" style="color:#ef4444">
+      <div class="preview-row" style="color:#ef4444">
         <span>Crédito necessário:</span><strong id="c2CreditAmount">—</strong>
       </div>
       <div class="preview-row" style="color:#f59e0b">
-        <span>Juros:</span><strong id="c2Interest">—</strong>
+        <span>Encargo de juros (<span id="c2IntPct">—</span>% / <span id="c2IntDays">—</span> dias):</span><strong id="c2InterestAmt">—</strong>
+      </div>
+      <div class="preview-row preview-total" style="color:#ef4444">
+        <span>Total adicionado ao crédito do cliente:</span><strong id="c2TotalDebt">—</strong>
       </div>
     </div>
     <p style="margin:1rem 0;color:#64748b;font-size:.9rem">
-      Confirme com o cliente se ele aceita as condições de crédito acima.
+      Confirme com o cliente se ele aceita as condições acima.
+      O encargo de juros será lançado imediatamente no crédito após a operação.
       Se aceitar, clique em <strong>Solicitar Aprovação</strong> para enviar o código de confirmação via WhatsApp.
     </p>
     <div id="step2Error" class="alert alert-error" style="display:none"></div>
@@ -175,10 +179,14 @@
   function showCreditWarning(info) {
     pendingCreditInfo = info;
     const dir = info.direction === 'usdt_to_usd' ? 'USDT' : 'USD';
+    const totalDebt = round6(info.credit_amount + info.interest_amount);
     document.getElementById('c2AmountIn').textContent = `${fmt(info.amount_in)} ${dir}`;
     document.getElementById('c2Balance').textContent = `${fmt(info.client_balance)} ${dir}`;
     document.getElementById('c2CreditAmount').textContent = `${fmt(info.credit_amount)} ${dir}`;
-    document.getElementById('c2Interest').textContent = `${info.interest_pct}% a cada ${info.interest_days} dias`;
+    document.getElementById('c2IntPct').textContent = info.interest_pct;
+    document.getElementById('c2IntDays').textContent = info.interest_days;
+    document.getElementById('c2InterestAmt').textContent = `${fmt(info.interest_amount)} ${dir}`;
+    document.getElementById('c2TotalDebt').textContent = `${fmt(totalDebt)} ${dir}`;
     document.getElementById('step2Error').style.display = 'none';
     showStep(2);
   }

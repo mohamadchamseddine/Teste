@@ -105,6 +105,7 @@ class CreditRequiredInfo(BaseModel):
     credit_amount: float
     interest_pct: float
     interest_days: int
+    interest_amount: float
 
 
 class CreditApprovalRequest(BaseModel):
