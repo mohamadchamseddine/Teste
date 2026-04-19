@@ -15,7 +15,7 @@
 {% endblock %}
 {% block scripts %}
 <script>
-  const isAdmin = '{{ user.role }}' === 'admin';
+  const isAdmin = {{ 'true' if user.role == 'admin' else 'false' }};
   async function load() {
     const s = await fetch('/api/dashboard/stats').then(r => r.json());
     const cards = document.getElementById('cards');
