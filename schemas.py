@@ -245,6 +245,21 @@ class CashBalanceOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ClientBalanceAdjustment(BaseModel):
+    client_id: int
+    currency: Currency
+    movement_type: MovementType
+    amount: float
+    notes: Optional[str] = None
+
+    @field_validator("amount")
+    @classmethod
+    def validate_amount(cls, v: float) -> float:
+        if v <= 0:
+            raise ValueError("Valor deve ser maior que zero")
+        return round(v, 6)
+
+
 class CashMovementCreate(BaseModel):
     currency: Currency
     movement_type: MovementType

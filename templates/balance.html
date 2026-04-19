@@ -39,6 +39,45 @@
 </div>
 
 <div class="admin-section" style="margin-top:2rem">
+  <h3>Movimentação na Conta do Cliente</h3>
+  <form id="clientMovForm" class="form-inline-col">
+    <div class="form-row">
+      <div class="form-group">
+        <label>Cliente</label>
+        <select id="cmClient" required>
+          <option value="">— Selecione —</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Moeda</label>
+        <select id="cmCurrency">
+          <option value="USD">USD</option>
+          <option value="USDT">USDT</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Tipo</label>
+        <select id="cmType">
+          <option value="deposit">Depositar (adicionar saldo ao cliente)</option>
+          <option value="withdrawal">Retirar (remover saldo do cliente)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Valor</label>
+        <input type="number" id="cmAmount" step="0.000001" min="0.01" required>
+      </div>
+      <div class="form-group">
+        <label>Motivo</label>
+        <input type="text" id="cmNotes" placeholder="Opcional">
+      </div>
+    </div>
+    <div id="cmErr" class="alert alert-error" style="display:none"></div>
+    <div id="cmOk" class="alert alert-success" style="display:none"></div>
+    <button type="submit" class="btn btn-primary">Confirmar Movimentação</button>
+  </form>
+</div>
+
+<div class="admin-section" style="margin-top:2rem">
   <h3>Histórico de Movimentações</h3>
   <div class="table-wrap">
     <table class="data-table">
@@ -88,6 +127,36 @@
     } catch (err) { errEl.textContent = err.message; errEl.style.display = 'block'; }
     btn.disabled = false;
   });
-  loadBalance(); loadMovements();
+  async function loadClients() {
+    const clients = await fetch('/api/clients').then(r => r.json());
+    const sel = document.getElementById('cmClient');
+    clients.forEach(c => {
+      sel.innerHTML += `<option value="${c.id}">${c.name} — ${c.phone} (USDT: ${fmt(c.usdt_balance)} | USD: ${fmt(c.usd_balance)})</option>`;
+    });
+  }
+  document.getElementById('clientMovForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errEl = document.getElementById('cmErr'); const okEl = document.getElementById('cmOk');
+    errEl.style.display = 'none'; okEl.style.display = 'none';
+    const btn = e.target.querySelector('button'); btn.disabled = true;
+    try {
+      const res = await fetch('/api/balance/client-movement', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          client_id: parseInt(document.getElementById('cmClient').value),
+          currency: document.getElementById('cmCurrency').value,
+          movement_type: document.getElementById('cmType').value,
+          amount: parseFloat(document.getElementById('cmAmount').value),
+          notes: document.getElementById('cmNotes').value || null,
+        }),
+      }).then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.detail); return d; });
+      okEl.textContent = `✓ ${res.client_name} — USDT: ${fmt(res.usdt_balance)} | USD: ${fmt(res.usd_balance)}`;
+      okEl.style.display = 'block';
+      e.target.reset(); loadBalance(); loadClients();
+    } catch (err) { errEl.textContent = err.message; errEl.style.display = 'block'; }
+    btn.disabled = false;
+  });
+
+  loadBalance(); loadMovements(); loadClients();
 </script>
 {% endblock %}
