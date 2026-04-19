@@ -119,7 +119,7 @@ async def client_balance_movement(
 
     old_client = {"usdt_balance": client.usdt_balance, "usd_balance": client.usd_balance}
 
-    # Adjust client balance directly (no cash box impact)
+    # Update client balance
     if data.currency == models.Currency.USDT:
         if data.movement_type == models.MovementType.deposit:
             client.usdt_balance = round(client.usdt_balance + data.amount, 6)
@@ -130,6 +130,18 @@ async def client_balance_movement(
             client.usd_balance = round(client.usd_balance + data.amount, 6)
         else:
             client.usd_balance = round(client.usd_balance - data.amount, 6)
+
+    # Update cash box: deposit = money entered company, withdrawal = money left company
+    cash_res = await db.execute(
+        select(models.CashBalance).where(models.CashBalance.currency == data.currency)
+    )
+    cash = cash_res.scalar_one_or_none()
+    if cash:
+        if data.movement_type == models.MovementType.deposit:
+            cash.balance = round(cash.balance + data.amount, 6)
+        else:
+            cash.balance = round(cash.balance - data.amount, 6)
+        cash.updated_at = datetime.now(timezone.utc)
 
     await audit.log(
         db, action=f"client_balance_{data.movement_type.value}",
