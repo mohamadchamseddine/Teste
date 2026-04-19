@@ -151,6 +151,9 @@ async def request_otp(
     db.add(otp)
     await db.commit()
 
+    import logging
+    logging.getLogger(__name__).info("OTP para %s (%s): %s", client.name, client.phone, code)
+
     background.add_task(whatsapp.send_otp, phone=client.phone, code=code)
     return {"detail": "Código enviado via WhatsApp."}
 
