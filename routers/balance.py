@@ -108,7 +108,7 @@ async def client_balance_movement(
     if not client:
         raise HTTPException(status_code=404, detail="Cliente não encontrado")
 
-    # Check sufficient balance for withdrawal
+    # Only block withdrawal if client doesn't have enough balance
     if data.movement_type == models.MovementType.withdrawal:
         current = client.usdt_balance if data.currency == models.Currency.USDT else client.usd_balance
         if current < data.amount:
@@ -117,23 +117,9 @@ async def client_balance_movement(
                 detail=f"Saldo insuficiente do cliente. Disponível: {current:,.2f} {data.currency.value}",
             )
 
-    # Check cash box for deposits (cash leaves the box when crediting a client)
-    cash_res = await db.execute(
-        select(models.CashBalance).where(models.CashBalance.currency == data.currency)
-    )
-    cash = cash_res.scalar_one_or_none()
-
-    if data.movement_type == models.MovementType.deposit:
-        if not cash or cash.balance < data.amount:
-            avail = cash.balance if cash else 0
-            raise HTTPException(
-                status_code=422,
-                detail=f"Saldo insuficiente no caixa. Disponível: {avail:,.2f} {data.currency.value}",
-            )
-
     old_client = {"usdt_balance": client.usdt_balance, "usd_balance": client.usd_balance}
 
-    # Update client balance
+    # Adjust client balance directly (no cash box impact)
     if data.currency == models.Currency.USDT:
         if data.movement_type == models.MovementType.deposit:
             client.usdt_balance = round(client.usdt_balance + data.amount, 6)
@@ -144,14 +130,6 @@ async def client_balance_movement(
             client.usd_balance = round(client.usd_balance + data.amount, 6)
         else:
             client.usd_balance = round(client.usd_balance - data.amount, 6)
-
-    # Update cash box (deposit to client = cash leaves box; withdrawal from client = cash enters box)
-    if cash:
-        if data.movement_type == models.MovementType.deposit:
-            cash.balance = round(cash.balance - data.amount, 6)
-        else:
-            cash.balance = round(cash.balance + data.amount, 6)
-        cash.updated_at = datetime.now(timezone.utc)
 
     await audit.log(
         db, action=f"client_balance_{data.movement_type.value}",
