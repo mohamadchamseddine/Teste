@@ -10,6 +10,7 @@ from auth import get_current_user
 from schemas import CreditApprovalRequest
 import models
 import whatsapp
+import audit
 
 router = APIRouter(prefix="/api/credit", tags=["credit"])
 
@@ -56,6 +57,13 @@ async def request_credit_approval(
     for prev in prev_res.scalars().all():
         prev.used = True
 
+    # Load fee to calculate interest preview (interest applies only to fee profit)
+    cfg_res = await db.execute(select(models.AppSettings).where(models.AppSettings.id == 1))
+    cfg = cfg_res.scalar_one_or_none()
+    fee_pct = cfg.fee_pct if cfg else 1.0
+    fee_amount = round(data.amount_in * fee_pct / 100, 6)
+    interest_amount = round(fee_amount * client.credit_interest_pct / 100, 6)
+
     code = _generate_code()
     otp = models.CreditApprovalOTP(
         client_id=data.client_id,
@@ -77,6 +85,7 @@ async def request_credit_approval(
         credit_amount=credit_amount,
         interest_pct=client.credit_interest_pct,
         interest_days=client.credit_interest_days,
+        interest_amount=interest_amount,
         code=code,
     )
 

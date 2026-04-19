@@ -75,14 +75,15 @@ async def send_credit_approval_otp(
     credit_amount: float,
     interest_pct: float,
     interest_days: int,
+    interest_amount: float,
     code: str,
 ) -> bool:
     text = (
         f"🔔 *Aprovação de Crédito*\n\n"
         f"Olá, {client_name}!\n\n"
         f"Uma transação está sendo processada utilizando seu limite de crédito:\n\n"
-        f"• Valor do crédito: *{credit_amount:,.2f}*\n"
-        f"• Juros: *{interest_pct}% a cada {interest_days} dias*\n\n"
+        f"• Valor do crédito utilizado: *{credit_amount:,.2f}*\n"
+        f"• Encargo de juros: *{interest_amount:,.6f}* ({interest_pct}% sobre a taxa, a cada {interest_days} dias)\n\n"
         f"Se você autoriza esta operação, informe o código abaixo ao operador:\n\n"
         f"🔑 *Código: {code}*\n\n"
         f"⚠️ Válido por 10 minutos. Não compartilhe com ninguém além do operador."
