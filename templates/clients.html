@@ -99,6 +99,7 @@
     </form>
   </div>
 </div>
+
 <!-- Modal: Definir PIN -->
 <div id="pinModal" class="modal" style="display:none">
   <div class="modal-card" style="max-width:360px">
@@ -124,48 +125,93 @@
 {% endblock %}
 {% block scripts %}
 <script>
+  let _clients = [];
+
+  function fmt(n) { return Number(n).toLocaleString('pt-BR', {minimumFractionDigits: 2}); }
+  function fmtDT(s) { return new Date(s).toLocaleString('pt-BR', {timeZone: 'America/Sao_Paulo'}); }
+
   async function load() {
     const res = await fetch('/api/clients');
     if (!res.ok) {
       document.getElementById('clientBody').innerHTML =
-        `<tr><td colspan="11" style="text-align:center;color:#ef4444">Erro ao carregar clientes (${res.status})</td></tr>`;
+        '<tr><td colspan="11" style="text-align:center;color:#ef4444">Erro ao carregar clientes (' + res.status + ')</td></tr>';
       return;
     }
-    const clients = await res.json();
-    if (!clients.length) {
+    _clients = await res.json();
+    if (!_clients.length) {
       document.getElementById('clientBody').innerHTML =
-        `<tr><td colspan="11" style="text-align:center;color:#64748b;padding:2rem">
-           Nenhum cliente cadastrado ainda. Clique em <strong>+ Novo Cliente</strong> para começar.
-         </td></tr>`;
+        '<tr><td colspan="11" style="text-align:center;color:#64748b;padding:2rem">' +
+        'Nenhum cliente cadastrado ainda. Clique em <strong>+ Novo Cliente</strong> para começar.' +
+        '</td></tr>';
       return;
     }
-    document.getElementById('clientBody').innerHTML = clients.map(c => `
-      <tr>
-        <td>#${c.id}</td>
-        <td>${c.name}</td>
-        <td>${c.phone}</td>
-        <td>${fmt(c.usdt_balance)}</td>
-        <td>${fmt(c.usd_balance)}</td>
-        <td>${fmt(c.credit_limit)}</td>
-        <td>${c.credit_used > 0
-          ? `<span style="color:#ef4444;font-weight:600">${fmt(c.credit_used)}</span>`
-          : `<span style="color:#64748b">0,00</span>`}</td>
-        <td>${c.deposit_address ? `<code class="addr">${c.deposit_address.slice(0,12)}…</code>` : '—'}</td>
-        <td><span class="badge ${c.is_active ? 'badge-green' : 'badge-red'}">${c.is_active ? 'Ativo' : 'Inativo'}</span></td>
-        <td>${fmtDT(c.created_at)}</td>
-        <td style="white-space:nowrap">
-          <button class="btn btn-sm btn-outline" onclick='openEditModal(${JSON.stringify(c)})'>Editar</button>
-          <button class="btn btn-sm btn-outline" style="margin-left:.35rem" onclick="openPinModal(${c.id}, '${c.name.replace(/'/g,&quot;\\\'&quot;)}')">PIN</button>
-        </td>
-      </tr>`).join('');
+    document.getElementById('clientBody').innerHTML = _clients.map(function(c) {
+      var creditUsedHtml = c.credit_used > 0
+        ? '<span style="color:#ef4444;font-weight:600">' + fmt(c.credit_used) + '</span>'
+        : '<span style="color:#64748b">0,00</span>';
+      var addrHtml = c.deposit_address
+        ? '<code class="addr">' + c.deposit_address.slice(0, 12) + '…</code>'
+        : '—';
+      var badgeClass = c.is_active ? 'badge-green' : 'badge-red';
+      var badgeText = c.is_active ? 'Ativo' : 'Inativo';
+      return '<tr>' +
+        '<td>#' + c.id + '</td>' +
+        '<td>' + escHtml(c.name) + '</td>' +
+        '<td>' + escHtml(c.phone) + '</td>' +
+        '<td>' + fmt(c.usdt_balance) + '</td>' +
+        '<td>' + fmt(c.usd_balance) + '</td>' +
+        '<td>' + fmt(c.credit_limit) + '</td>' +
+        '<td>' + creditUsedHtml + '</td>' +
+        '<td>' + addrHtml + '</td>' +
+        '<td><span class="badge ' + badgeClass + '">' + badgeText + '</span></td>' +
+        '<td>' + fmtDT(c.created_at) + '</td>' +
+        '<td style="white-space:nowrap">' +
+          '<button class="btn btn-sm btn-outline" onclick="openEditById(' + c.id + ')">Editar</button>' +
+          ' <button class="btn btn-sm btn-outline" onclick="openPinModal(' + c.id + ')">PIN</button>' +
+        '</td>' +
+        '</tr>';
+    }).join('');
   }
-  function fmt(n) { return Number(n).toLocaleString('pt-BR', {minimumFractionDigits: 2}); }
-  function fmtDT(s) { return new Date(s).toLocaleString('pt-BR', {timeZone: 'America/Sao_Paulo'}); }
 
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ── Novo Cliente ──────────────────────────────────────────────────────────────
   function openModal() { document.getElementById('modal').style.display = 'flex'; }
   function closeModal() { document.getElementById('modal').style.display = 'none'; }
 
-  function openEditModal(c) {
+  document.getElementById('clientForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    var errEl = document.getElementById('cError');
+    errEl.style.display = 'none';
+    var btn = e.target.querySelector('button[type=submit]');
+    btn.disabled = true;
+    try {
+      var r = await fetch('/api/clients', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          name: document.getElementById('cName').value,
+          phone: document.getElementById('cPhone').value,
+          credit_limit: parseFloat(document.getElementById('cCreditLimit').value) || 0,
+          credit_interest_pct: parseFloat(document.getElementById('cInterestPct').value) || 0,
+          credit_interest_days: parseInt(document.getElementById('cInterestDays').value) || 30,
+        }),
+      });
+      var d = await r.json();
+      if (!r.ok) throw new Error(d.detail || 'Erro ao cadastrar');
+      closeModal();
+      e.target.reset();
+      load();
+    } catch(err) { errEl.textContent = err.message; errEl.style.display = 'block'; }
+    btn.disabled = false;
+  });
+
+  // ── Editar Cliente ────────────────────────────────────────────────────────────
+  function openEditById(id) {
+    var c = _clients.find(function(x){ return x.id === id; });
+    if (!c) return;
     document.getElementById('eId').value = c.id;
     document.getElementById('eName').value = c.name;
     document.getElementById('ePhone').value = c.phone;
@@ -178,38 +224,15 @@
   }
   function closeEditModal() { document.getElementById('editModal').style.display = 'none'; }
 
-  document.getElementById('clientForm').addEventListener('submit', async (e) => {
+  document.getElementById('editForm').addEventListener('submit', async function(e) {
     e.preventDefault();
-    const errEl = document.getElementById('cError');
+    var errEl = document.getElementById('eError');
     errEl.style.display = 'none';
-    const btn = e.target.querySelector('button[type=submit]');
+    var btn = e.target.querySelector('button[type=submit]');
     btn.disabled = true;
+    var id = document.getElementById('eId').value;
     try {
-      await fetch('/api/clients', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-          name: document.getElementById('cName').value,
-          phone: document.getElementById('cPhone').value,
-          credit_limit: parseFloat(document.getElementById('cCreditLimit').value) || 0,
-          credit_interest_pct: parseFloat(document.getElementById('cInterestPct').value) || 0,
-          credit_interest_days: parseInt(document.getElementById('cInterestDays').value) || 30,
-        }),
-      }).then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.detail); return d; });
-      closeModal(); e.target.reset(); load();
-    } catch (err) { errEl.textContent = err.message; errEl.style.display = 'block'; }
-    btn.disabled = false;
-  });
-
-  document.getElementById('editForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const errEl = document.getElementById('eError');
-    errEl.style.display = 'none';
-    const btn = e.target.querySelector('button[type=submit]');
-    btn.disabled = true;
-    const id = document.getElementById('eId').value;
-    try {
-      await fetch(`/api/clients/${id}`, {
+      var r = await fetch('/api/clients/' + id, {
         method: 'PATCH',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
@@ -220,39 +243,46 @@
           credit_interest_pct: parseFloat(document.getElementById('eInterestPct').value) || 0,
           credit_interest_days: parseInt(document.getElementById('eInterestDays').value) || 30,
         }),
-      }).then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.detail); return d; });
-      closeEditModal(); load();
-    } catch (err) { errEl.textContent = err.message; errEl.style.display = 'block'; }
+      });
+      var d = await r.json();
+      if (!r.ok) throw new Error(d.detail || 'Erro ao salvar');
+      closeEditModal();
+      load();
+    } catch(err) { errEl.textContent = err.message; errEl.style.display = 'block'; }
     btn.disabled = false;
   });
 
-  function openPinModal(id, name) {
+  // ── PIN ───────────────────────────────────────────────────────────────────────
+  function openPinModal(id) {
+    var c = _clients.find(function(x){ return x.id === id; });
     document.getElementById('pinClientId').value = id;
-    document.getElementById('pinClientName').textContent = `Cliente: ${name}`;
+    document.getElementById('pinClientName').textContent = c ? 'Cliente: ' + c.name : '';
     document.getElementById('pinValue').value = '';
     document.getElementById('pinError').style.display = 'none';
     document.getElementById('pinModal').style.display = 'flex';
-    setTimeout(() => document.getElementById('pinValue').focus(), 100);
+    setTimeout(function(){ document.getElementById('pinValue').focus(); }, 100);
   }
   function closePinModal() { document.getElementById('pinModal').style.display = 'none'; }
 
-  document.getElementById('pinForm').addEventListener('submit', async (e) => {
+  document.getElementById('pinForm').addEventListener('submit', async function(e) {
     e.preventDefault();
-    const errEl = document.getElementById('pinError');
+    var errEl = document.getElementById('pinError');
     errEl.style.display = 'none';
-    const btn = e.target.querySelector('button[type=submit]');
+    var btn = e.target.querySelector('button[type=submit]');
     btn.disabled = true;
-    const id = document.getElementById('pinClientId').value;
-    const pin = document.getElementById('pinValue').value;
+    var id = document.getElementById('pinClientId').value;
+    var pin = document.getElementById('pinValue').value;
     try {
-      await fetch(`/api/clients/${id}/pin`, {
+      var r = await fetch('/api/clients/' + id + '/pin', {
         method: 'PUT',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ pin }),
-      }).then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.detail); return d; });
+        body: JSON.stringify({ pin: pin }),
+      });
+      var d = await r.json();
+      if (!r.ok) throw new Error(d.detail || 'Erro ao definir PIN');
       closePinModal();
       alert('PIN definido com sucesso!');
-    } catch (err) { errEl.textContent = err.message; errEl.style.display = 'block'; }
+    } catch(err) { errEl.textContent = err.message; errEl.style.display = 'block'; }
     btn.disabled = false;
   });
 
