@@ -125,7 +125,20 @@
 {% block scripts %}
 <script>
   async function load() {
-    const clients = await fetch('/api/clients').then(r => r.json());
+    const res = await fetch('/api/clients');
+    if (!res.ok) {
+      document.getElementById('clientBody').innerHTML =
+        `<tr><td colspan="11" style="text-align:center;color:#ef4444">Erro ao carregar clientes (${res.status})</td></tr>`;
+      return;
+    }
+    const clients = await res.json();
+    if (!clients.length) {
+      document.getElementById('clientBody').innerHTML =
+        `<tr><td colspan="11" style="text-align:center;color:#64748b;padding:2rem">
+           Nenhum cliente cadastrado ainda. Clique em <strong>+ Novo Cliente</strong> para começar.
+         </td></tr>`;
+      return;
+    }
     document.getElementById('clientBody').innerHTML = clients.map(c => `
       <tr>
         <td>#${c.id}</td>
