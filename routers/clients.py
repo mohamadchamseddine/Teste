@@ -237,6 +237,41 @@ async def client_my_statement(
     return result.scalars().all()
 
 
+@router.post("/api/clients/{client_id}/generate-address")
+async def generate_client_address(
+    client_id: int,
+    request: Request,
+    user: models.User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(select(models.Client).where(models.Client.id == client_id))
+    client = result.scalar_one_or_none()
+    if not client:
+        raise HTTPException(status_code=404, detail="Cliente não encontrado")
+    if client.deposit_address:
+        return {"deposit_address": client.deposit_address}
+
+    max_idx_res = await db.execute(select(func.max(models.Client.deposit_address_index)))
+    max_idx = max_idx_res.scalar() or -1
+    next_idx = max_idx + 1
+
+    address = blockchain.get_next_deposit_address(next_idx)
+    if not address:
+        raise HTTPException(status_code=503, detail="TRON_MNEMONIC não configurado no servidor")
+
+    client.deposit_address = address
+    client.deposit_address_index = next_idx
+
+    await audit.log(
+        db, action="generate_deposit_address", username=user.username,
+        request=request, user_id=user.id,
+        entity_type="client", entity_id=client.id,
+        new_value={"deposit_address": address},
+    )
+    await db.commit()
+    return {"deposit_address": address}
+
+
 @router.get("/api/clients/{client_id}/deposit-qr")
 async def get_deposit_qr(
     client_id: int,

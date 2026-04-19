@@ -151,7 +151,7 @@
         : '<span style="color:#64748b">0,00</span>';
       var addrHtml = c.deposit_address
         ? '<code class="addr">' + c.deposit_address.slice(0, 12) + '…</code>'
-        : '—';
+        : '<button class="btn btn-sm btn-outline" onclick="genAddress(' + c.id + ')">Gerar</button>';
       var badgeClass = c.is_active ? 'badge-green' : 'badge-red';
       var badgeText = c.is_active ? 'Ativo' : 'Inativo';
       return '<tr>' +
@@ -253,6 +253,17 @@
   });
 
   // ── PIN ───────────────────────────────────────────────────────────────────────
+  async function genAddress(id) {
+    if (!confirm('Gerar endereço de depósito USDT para este cliente?')) return;
+    try {
+      var r = await fetch('/api/clients/' + id + '/generate-address', { method: 'POST' });
+      var d = await r.json();
+      if (!r.ok) throw new Error(d.detail || 'Erro ao gerar endereço');
+      alert('Endereço gerado: ' + d.deposit_address);
+      load();
+    } catch(err) { alert('Erro: ' + err.message); }
+  }
+
   function openPinModal(id) {
     var c = _clients.find(function(x){ return x.id === id; });
     document.getElementById('pinClientId').value = id;
