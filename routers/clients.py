@@ -128,67 +128,56 @@ async def update_client(
     return client
 
 
-# ── Client auth (WhatsApp OTP) ────────────────────────────────────────────────
+# ── Client auth (PIN) ─────────────────────────────────────────────────────────
 
-@router.post("/api/client/request-otp")
-async def request_otp(
-    data: OTPRequest,
-    background: BackgroundTasks,
-    db: AsyncSession = Depends(get_db),
-):
-    result = await db.execute(select(models.Client).where(models.Client.phone == data.phone))
-    client = result.scalar_one_or_none()
-    if not client or not client.is_active:
-        # Don't reveal if phone exists
-        return {"detail": "Se o número estiver cadastrado, você receberá um código."}
-
-    code = _generate_otp()
-    otp = models.OTPCode(
-        client_id=client.id,
-        code=code,
-        expires_at=datetime.now(timezone.utc) + timedelta(minutes=5),
-    )
-    db.add(otp)
-    await db.commit()
-
-    import logging
-    logging.getLogger(__name__).info("OTP para %s (%s): %s", client.name, client.phone, code)
-
-    background.add_task(whatsapp.send_otp, phone=client.phone, code=code)
-    return {"detail": "Código enviado via WhatsApp."}
-
-
-@router.post("/api/client/verify-otp")
-async def verify_otp(
-    data: OTPVerify,
+@router.post("/api/client/login")
+async def client_login(
+    data: OTPVerify,  # reuse schema: phone + code(=pin)
     response: Response,
     db: AsyncSession = Depends(get_db),
 ):
     cl_res = await db.execute(select(models.Client).where(models.Client.phone == data.phone))
     client = cl_res.scalar_one_or_none()
     if not client or not client.is_active:
-        raise HTTPException(status_code=401, detail="Código inválido ou expirado")
-
-    otp_res = await db.execute(
-        select(models.OTPCode).where(
-            models.OTPCode.client_id == client.id,
-            models.OTPCode.code == data.code,
-            models.OTPCode.used == False,
-        )
-    )
-    otp = otp_res.scalar_one_or_none()
-    if not otp:
-        raise HTTPException(status_code=401, detail="Código inválido ou expirado")
-    expires = otp.expires_at if otp.expires_at.tzinfo else otp.expires_at.replace(tzinfo=timezone.utc)
-    if expires < datetime.now(timezone.utc):
-        raise HTTPException(status_code=401, detail="Código expirado. Solicite um novo.")
-
-    otp.used = True
-    await db.commit()
+        raise HTTPException(status_code=401, detail="Telefone ou PIN inválido")
+    if not client.pin_hash:
+        raise HTTPException(status_code=401, detail="PIN não cadastrado. Contate o operador.")
+    from auth import verify_pin
+    if not verify_pin(data.code, client.pin_hash):
+        raise HTTPException(status_code=401, detail="Telefone ou PIN inválido")
 
     token = create_token(f"client:{client.id}")
     response.set_cookie("client_token", token, httponly=True, samesite="lax")
     return {"access_token": token, "token_type": "bearer"}
+
+
+@router.put("/api/clients/{client_id}/pin")
+async def set_client_pin(
+    client_id: int,
+    data: dict,
+    request: Request,
+    user: models.User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    pin = data.get("pin", "")
+    if not pin or not str(pin).isdigit() or len(str(pin)) != 4:
+        raise HTTPException(status_code=422, detail="PIN deve ter exatamente 4 dígitos numéricos")
+
+    cl_res = await db.execute(select(models.Client).where(models.Client.id == client_id))
+    client = cl_res.scalar_one_or_none()
+    if not client:
+        raise HTTPException(status_code=404, detail="Cliente não encontrado")
+
+    from auth import hash_pin
+    client.pin_hash = hash_pin(str(pin))
+
+    await audit.log(
+        db, action="set_client_pin", username=user.username,
+        request=request, user_id=user.id,
+        entity_type="client", entity_id=client.id,
+    )
+    await db.commit()
+    return {"detail": "PIN definido com sucesso"}
 
 
 @router.post("/api/client/logout")

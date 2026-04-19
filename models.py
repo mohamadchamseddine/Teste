@@ -63,6 +63,8 @@ class Client(Base):
     is_active = Column(Boolean, default=True)
     usdt_balance = Column(Float, default=0.0)
     usd_balance = Column(Float, default=0.0)
+    # PIN login
+    pin_hash = Column(String(255), nullable=True)
     # Credit
     credit_limit = Column(Float, default=0.0)
     credit_used = Column(Float, default=0.0)

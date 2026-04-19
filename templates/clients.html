@@ -99,6 +99,28 @@
     </form>
   </div>
 </div>
+<!-- Modal: Definir PIN -->
+<div id="pinModal" class="modal" style="display:none">
+  <div class="modal-card" style="max-width:360px">
+    <h3>Definir PIN do Cliente</h3>
+    <p id="pinClientName" style="color:#64748b;margin-bottom:1rem;font-size:.9rem"></p>
+    <form id="pinForm">
+      <input type="hidden" id="pinClientId">
+      <div class="form-group">
+        <label>Novo PIN (4 dígitos)</label>
+        <input type="password" id="pinValue" required maxlength="4" minlength="4"
+               inputmode="numeric" pattern="[0-9]{4}" placeholder="••••"
+               class="otp-input" autocomplete="new-password">
+        <small>Somente números</small>
+      </div>
+      <div id="pinError" class="alert alert-error" style="display:none"></div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Salvar PIN</button>
+        <button type="button" class="btn btn-outline" onclick="closePinModal()">Cancelar</button>
+      </div>
+    </form>
+  </div>
+</div>
 {% endblock %}
 {% block scripts %}
 <script>
@@ -118,7 +140,10 @@
         <td>${c.deposit_address ? `<code class="addr">${c.deposit_address.slice(0,12)}…</code>` : '—'}</td>
         <td><span class="badge ${c.is_active ? 'badge-green' : 'badge-red'}">${c.is_active ? 'Ativo' : 'Inativo'}</span></td>
         <td>${fmtDT(c.created_at)}</td>
-        <td><button class="btn btn-sm btn-outline" onclick='openEditModal(${JSON.stringify(c)})'>Editar</button></td>
+        <td style="white-space:nowrap">
+          <button class="btn btn-sm btn-outline" onclick='openEditModal(${JSON.stringify(c)})'>Editar</button>
+          <button class="btn btn-sm btn-outline" style="margin-left:.35rem" onclick="openPinModal(${c.id}, '${c.name.replace(/'/g,&quot;\\\'&quot;)}')">PIN</button>
+        </td>
       </tr>`).join('');
   }
   function fmt(n) { return Number(n).toLocaleString('pt-BR', {minimumFractionDigits: 2}); }
@@ -184,6 +209,36 @@
         }),
       }).then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.detail); return d; });
       closeEditModal(); load();
+    } catch (err) { errEl.textContent = err.message; errEl.style.display = 'block'; }
+    btn.disabled = false;
+  });
+
+  function openPinModal(id, name) {
+    document.getElementById('pinClientId').value = id;
+    document.getElementById('pinClientName').textContent = `Cliente: ${name}`;
+    document.getElementById('pinValue').value = '';
+    document.getElementById('pinError').style.display = 'none';
+    document.getElementById('pinModal').style.display = 'flex';
+    setTimeout(() => document.getElementById('pinValue').focus(), 100);
+  }
+  function closePinModal() { document.getElementById('pinModal').style.display = 'none'; }
+
+  document.getElementById('pinForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errEl = document.getElementById('pinError');
+    errEl.style.display = 'none';
+    const btn = e.target.querySelector('button[type=submit]');
+    btn.disabled = true;
+    const id = document.getElementById('pinClientId').value;
+    const pin = document.getElementById('pinValue').value;
+    try {
+      await fetch(`/api/clients/${id}/pin`, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ pin }),
+      }).then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.detail); return d; });
+      closePinModal();
+      alert('PIN definido com sucesso!');
     } catch (err) { errEl.textContent = err.message; errEl.style.display = 'block'; }
     btn.disabled = false;
   });
