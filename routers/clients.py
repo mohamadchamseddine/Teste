@@ -169,18 +169,19 @@ async def verify_otp(
     if not client or not client.is_active:
         raise HTTPException(status_code=401, detail="Código inválido ou expirado")
 
-    now = datetime.now(timezone.utc)
     otp_res = await db.execute(
         select(models.OTPCode).where(
             models.OTPCode.client_id == client.id,
             models.OTPCode.code == data.code,
             models.OTPCode.used == False,
-            models.OTPCode.expires_at > now,
         )
     )
     otp = otp_res.scalar_one_or_none()
     if not otp:
         raise HTTPException(status_code=401, detail="Código inválido ou expirado")
+    expires = otp.expires_at if otp.expires_at.tzinfo else otp.expires_at.replace(tzinfo=timezone.utc)
+    if expires < datetime.now(timezone.utc):
+        raise HTTPException(status_code=401, detail="Código expirado. Solicite um novo.")
 
     otp.used = True
     await db.commit()
