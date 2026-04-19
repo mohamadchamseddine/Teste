@@ -190,6 +190,25 @@ class ClientOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ClientUpdate(BaseModel):
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    is_active: Optional[bool] = None
+    credit_limit: Optional[float] = None
+    credit_interest_pct: Optional[float] = None
+    credit_interest_days: Optional[int] = None
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, v: str) -> str:
+        if v is None:
+            return v
+        digits = "".join(c for c in v if c.isdigit())
+        if len(digits) < 10:
+            raise ValueError("Número de telefone inválido")
+        return digits
+
+
 class ClientBalanceOut(BaseModel):
     usdt_balance: float
     usd_balance: float

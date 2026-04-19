@@ -9,7 +9,7 @@ from sqlalchemy import select, func
 from database import get_db
 from auth import get_current_user, get_current_client, create_token
 from schemas import (
-    ClientCreate, ClientOut, ClientBalanceOut,
+    ClientCreate, ClientUpdate, ClientOut, ClientBalanceOut,
     OTPRequest, OTPVerify, TransactionOut,
 )
 import models
@@ -73,6 +73,55 @@ async def create_client(
         request=request, user_id=user.id,
         entity_type="client", entity_id=client.id,
         new_value={"name": data.name, "phone": data.phone},
+    )
+    await db.commit()
+    await db.refresh(client)
+    return client
+
+
+@router.patch("/api/clients/{client_id}", response_model=ClientOut)
+async def update_client(
+    client_id: int,
+    data: ClientUpdate,
+    request: Request,
+    user: models.User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(select(models.Client).where(models.Client.id == client_id))
+    client = result.scalar_one_or_none()
+    if not client:
+        raise HTTPException(status_code=404, detail="Cliente não encontrado")
+
+    if data.phone and data.phone != client.phone:
+        existing = await db.execute(select(models.Client).where(models.Client.phone == data.phone))
+        if existing.scalar_one_or_none():
+            raise HTTPException(status_code=409, detail="Telefone já cadastrado")
+
+    old = {"name": client.name, "phone": client.phone, "is_active": client.is_active,
+           "credit_limit": client.credit_limit, "credit_interest_pct": client.credit_interest_pct,
+           "credit_interest_days": client.credit_interest_days}
+
+    if data.name is not None:
+        client.name = data.name
+    if data.phone is not None:
+        client.phone = data.phone
+    if data.is_active is not None:
+        client.is_active = data.is_active
+    if data.credit_limit is not None:
+        client.credit_limit = data.credit_limit
+    if data.credit_interest_pct is not None:
+        client.credit_interest_pct = data.credit_interest_pct
+    if data.credit_interest_days is not None:
+        client.credit_interest_days = data.credit_interest_days
+
+    await audit.log(
+        db, action="update_client", username=user.username,
+        request=request, user_id=user.id,
+        entity_type="client", entity_id=client.id,
+        old_value=old,
+        new_value={"name": client.name, "phone": client.phone, "is_active": client.is_active,
+                   "credit_limit": client.credit_limit, "credit_interest_pct": client.credit_interest_pct,
+                   "credit_interest_days": client.credit_interest_days},
     )
     await db.commit()
     await db.refresh(client)
